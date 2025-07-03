@@ -1,0 +1,59 @@
+
+name: C++ CI Workflow with conda-forge dependencies
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+
+jobs:
+  build:
+    name: '[${{ matrix.os }}@${{ matrix.build_type }}@conda]'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        build_type: [Release]
+        os: [ubuntu-latest, windows-2022]
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: conda-incubator/setup-miniconda@v3
+      with:
+        miniforge-variant: Miniforge3
+        miniforge-version: latest
+        channels: conda-forge,robostack-humble
+        channel-priority: true
+
+    - name: Dependencies
+      shell: bash -l {0}
+      run: |
+        conda install compilers cmake pkg-config make ninja colcon-common-extensions catkin_tools rosdep ros-humble-desktop yarp
+
+    - name: Conda list
+      shell: bash -l {0}
+      run: |
+        conda list
+
+    - name: Configure [Linux]
+      if: contains(matrix.os, 'ubuntu')
+      shell: bash -l {0}
+      run: |
+        mkdir -p build
+        cd build
+        cmake -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} ..
+
+    - name: Configure [Windows]
+      if: contains(matrix.os, 'windows')
+      shell: bash -l {0}
+      run: |
+        mkdir -p build
+        cd build
+        cmake -G"Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} ..
+
+    - name: Build
+      shell: bash -l {0}
+      run: |
+        cd build
+        cmake --build . --config ${{ matrix.build_type }}
