@@ -1,6 +1,7 @@
 #build
 /build/
 .build
+.buildvs
 .pixi
 
 # vscode
@@ -18,3 +19,7 @@
 # Visual Studio
 .vs/
 CmakeSettings.json
+
+# pixi environments
+.pixi
+*.egg-info

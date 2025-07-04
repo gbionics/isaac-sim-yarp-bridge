@@ -1,0 +1,25 @@
+[workspace]
+authors = ["Stefano Dafarra <stefano.dafarra@iit.it>"]
+channels = ["conda-forge", "robostack-humble"]
+name = "isaac-sim-yarp-bridge"
+platforms = ["win-64", "linux-64"]
+
+[tasks]
+configure = { cmd = "cmake -GNinja -B .build -S. -DCMAKE_BUILD_TYPE=Release" }
+build = { cmd = "cmake --build .build --config Release", depends-on = ["configure"] }
+
+configurevs = { cmd = "cmake -G'Visual Studio 17 2022' -B .buildvs -S." }
+buildvs = { cmd = "cmake --build .buildvs --config Release", depends-on = ["configurevs"] }
+
+
+[dependencies]
+cxx-compiler = "*"
+cmake = "*"
+pkg-config = "*"
+make = "*"
+ninja = "*"
+colcon-common-extensions = "*"
+catkin_tools = "*"
+rosdep = "*"
+ros-humble-desktop = "*"
+yarp = "*"
