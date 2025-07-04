@@ -35,16 +35,19 @@ jobs:
         conda config --remove channels defaults
         conda install cxx-compiler cmake pkg-config make ninja colcon-common-extensions catkin_tools rosdep ros-humble-desktop yarp
 
-    - name: Environment variables
+    - name: Environment [Linux]
+      if: contains(matrix.os, 'ubuntu')
       run: |
         env
-
-    - name: Conda list
-      run: |
         conda list
+        ros2 pkg list
 
-    - name: ROS2 pkg list
+    - name: Environment [Windows]
+      if: contains(matrix.os, 'windows')
+      shell: cmd /C CALL {0}
       run: |
+        set
+        conda list
         ros2 pkg list
 
     - name: Configure [Linux]
@@ -56,12 +59,21 @@ jobs:
 
     - name: Configure [Windows]
       if: contains(matrix.os, 'windows')
+      shell: cmd /C CALL {0}
       run: |
         mkdir -p build
         cd build
         cmake -G"Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} ..
 
-    - name: Build
+    - name: Build [Linux]
+      if: contains(matrix.os, 'ubuntu')
+      run: |
+        cd build
+        cmake --build . --config ${{ matrix.build_type }}
+
+    - name: Build [Windows]
+      if: contains(matrix.os, 'windows')
+      shell: cmd /C CALL {0}
       run: |
         cd build
         cmake --build . --config ${{ matrix.build_type }}
