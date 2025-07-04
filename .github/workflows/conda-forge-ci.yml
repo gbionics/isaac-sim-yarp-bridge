@@ -38,6 +38,11 @@ jobs:
       run: |
         conda list
 
+    - name: ROS2 pkg list
+      shell: bash -l {0}
+      run: |
+        ros2 pkg list
+
     - name: Configure [Linux]
       if: contains(matrix.os, 'ubuntu')
       shell: bash -l {0}
