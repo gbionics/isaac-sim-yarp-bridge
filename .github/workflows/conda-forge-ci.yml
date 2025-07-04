@@ -33,6 +33,11 @@ jobs:
         conda config --remove channels defaults
         conda install cxx-compiler cmake pkg-config make ninja colcon-common-extensions catkin_tools rosdep ros-humble-desktop yarp
 
+    - name: Environment variables
+      shell: bash -l {0}
+      run: |
+        env
+
     - name: Conda list
       shell: bash -l {0}
       run: |
