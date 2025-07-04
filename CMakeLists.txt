@@ -64,6 +64,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# find python before python3
+find_package(Python REQUIRED)
+
 # YARP
 find_package(YCM REQUIRED)
 find_package(YARP REQUIRED)
