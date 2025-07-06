@@ -3,6 +3,7 @@ name: C++ CI Workflow with conda-forge dependencies
 
 on:
   pull_request:
+  push:
   workflow_dispatch:
 
 
