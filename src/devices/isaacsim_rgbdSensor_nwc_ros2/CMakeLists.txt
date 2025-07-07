@@ -32,6 +32,7 @@ target_link_libraries(IsaacSimRGBDSensorNWCROS2
   YARP::YARP_dev
   rclcpp::rclcpp
   sensor_msgs::sensor_msgs__rosidl_typesupport_cpp
+  message_filters::message_filters
 )
 
 target_compile_features(IsaacSimRGBDSensorNWCROS2 PUBLIC cxx_std_17)

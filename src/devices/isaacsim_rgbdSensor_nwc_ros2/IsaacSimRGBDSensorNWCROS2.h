@@ -8,6 +8,16 @@
 #include <yarp/os/PeriodicThread.h>
 #include <yarp/dev/IRGBDSensor.h>
 
+#include <rclcpp/node.hpp>
+#include <message_filters/sync_policies/approximate_time.h>
+#include <message_filters/subscriber.h>
+#include <sensor_msgs/msg/image.hpp>
+
+#include <memory>
+#include <mutex>
+
+#include "IsaacSimRGBDSensorNWCROS2_ParamsParser.h"
+
 namespace yarp::dev
 {
 class IsaacSimRGBDSensorNWCROS2;
@@ -60,5 +70,31 @@ public:
 
     RGBDSensor_status  getSensorStatus() override;
     std::string getLastErrorMsg(yarp::os::Stamp* timeStamp = NULL) override;
+
+private:
+    class RGBDSubscriber : public rclcpp::Node
+    {
+    public:
+        RGBDSubscriber(const std::string& name, const std::string& rgbTopic, const std::string& depthTopic);
+
+        bool getImages(yarp::sig::FlexImage& colorFrame, yarp::sig::ImageOf<yarp::sig::PixelFloat>& depthFrame, yarp::os::Stamp* colorStamp = NULL, yarp::os::Stamp* depthStamp = NULL);
+
+    private:
+        typedef message_filters::sync_policies::ApproximateTime<
+            sensor_msgs::msg::Image,
+            sensor_msgs::msg::Image
+        > SyncPolicy;
+
+        void callback(const sensor_msgs::msg::Image::ConstSharedPtr& rgb,
+            const sensor_msgs::msg::Image::ConstSharedPtr& depth);
+
+        message_filters::Subscriber<sensor_msgs::msg::Image> m_rgb_sub;
+        message_filters::Subscriber<sensor_msgs::msg::Image> m_depth_sub;
+        std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> m_sync;
+        std::mutex m_mutex;
+    };
+
+    IsaacSimRGBDSensorNWCROS2_ParamsParser m_paramsParser;
+    std::shared_ptr<RGBDSubscriber> m_subscriber;
 };
 #endif
