@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Fondazione Istituto Italiano di Tecnologia (IIT)
 # SPDX-License-Identifier: BSD-2-Clause
 
-yarp_prepare_plugin(openxrheadset
+yarp_prepare_plugin(IsaacSimRGBDSensorNWCROS2
   CATEGORY device
   TYPE yarp::dev::IsaacSimRGBDSensorNWCROS2
   INCLUDE IsaacSimRGBDSensorNWCROS2.h
@@ -14,7 +14,16 @@ if (SKIP_IsaacSimRGBDSensorNWCROS2)
   return()
 endif()
 
-yarp_add_plugin(IsaacSimRGBDSensorNWCROS2 IsaacSimRGBDSensorNWCROS2.h IsaacSimRGBDSensorNWCROS2.cpp)
+yarp_add_plugin(IsaacSimRGBDSensorNWCROS2)
+generateDeviceParamsParser(IsaacSimRGBDSensorNWCROS2 IsaacSimRGBDSensorNWCROS2)
+
+target_sources(IsaacSimRGBDSensorNWCROS2
+  PRIVATE
+    IsaacSimRGBDSensorNWCROS2.cpp
+    IsaacSimRGBDSensorNWCROS2.h
+    IsaacSimRGBDSensorNWCROS2_ParamsParser.h
+    IsaacSimRGBDSensorNWCROS2_ParamsParser.cpp
+)
 
 target_link_libraries(IsaacSimRGBDSensorNWCROS2
   PRIVATE
