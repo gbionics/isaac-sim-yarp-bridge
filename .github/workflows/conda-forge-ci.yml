@@ -28,11 +28,10 @@ jobs:
         miniforge-version: latest
         channels: conda-forge,robostack-humble
         channel-priority: true
+        conda-remove-defaults: true
 
     - name: Dependencies
       run: |
-        # Workaround for https://github.com/conda-incubator/setup-miniconda/issues/186
-        conda config --remove channels defaults
         conda install cxx-compiler cmake pkg-config make ninja colcon-common-extensions catkin_tools rosdep ros-humble-desktop yarp
 
     - name: Environment [Linux]
