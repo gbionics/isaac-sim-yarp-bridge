@@ -10,6 +10,14 @@ class Camera:
     target: str
 
 
+@dataclasses.dataclass
+class FT:
+    name: str
+    joint: str
+    frame: str
+    flip: bool
+
+
 class Settings:
     def __init__(self):
         self.graph_path = "/action_graph"
@@ -20,7 +28,7 @@ class Settings:
             "waist_imu_0": self.robot_path + "/waist_imu_0/waist_imu_0",
             "head_imu_0": self.robot_path + "/head_imu_0/head_imu_0",
         }
-        realsense_prefix = "/World/ergoCubSN002/ergoCubSN002/realsense/"
+        realsense_prefix = self.robot_path + "/realsense/"
         self.cameras = [
             Camera(
                 prefix="realsense",
@@ -34,6 +42,56 @@ class Settings:
                 suffix="depth",
                 type="depth",
                 target=realsense_prefix + "rsd455/RSD455/Camera_Pseudo_Depth",
+            ),
+        ]
+        self.FTs = [
+            FT(
+                name="l_leg_ft",
+                joint=self.robot_path + "/joints/l_leg_ft_sensor",
+                frame=self.robot_path + "/l_leg_ft",
+                flip=False,
+            ),
+            FT(
+                name="l_foot_front_ft",
+                joint=self.robot_path + "/joints/l_foot_front_ft_sensor",
+                frame=self.robot_path + "/l_foot_front_ft",
+                flip=False,
+            ),
+            FT(
+                name="l_foot_rear_ft",
+                joint=self.robot_path + "/joints/l_foot_rear_ft_sensor",
+                frame=self.robot_path + "/l_foot_rear_ft",
+                flip=False,
+            ),
+            FT(
+                name="r_leg_ft",
+                joint=self.robot_path + "/joints/r_leg_ft_sensor",
+                frame=self.robot_path + "/r_leg_ft",
+                flip=False,
+            ),
+            FT(
+                name="r_foot_front_ft",
+                joint=self.robot_path + "/joints/r_foot_front_ft_sensor",
+                frame=self.robot_path + "/r_foot_front_ft",
+                flip=False,
+            ),
+            FT(
+                name="r_foot_rear_ft",
+                joint=self.robot_path + "/joints/r_foot_rear_ft_sensor",
+                frame=self.robot_path + "/r_foot_rear_ft",
+                flip=False,
+            ),
+            FT(
+                name="l_arm_ft",
+                joint=self.robot_path + "/joints/l_arm_ft_sensor",
+                frame=self.robot_path + "/l_arm_ft",
+                flip=False,
+            ),
+            FT(
+                name="r_arm_ft",
+                joint=self.robot_path + "/joints/r_arm_ft_sensor",
+                frame=self.robot_path + "/r_arm_ft",
+                flip=False,
             ),
         ]
 
@@ -412,6 +470,342 @@ def create_camera_compounds(graph_keys, settings):
     }
 
 
+def create_ft_subcompound(graph_keys, name, joint, frame, flip, topic_prefix):
+    script_node_name = "script_" + name
+    break_force_node_name = "break_" + name + "_force"
+    break_torque_node_name = "break_" + name + "_torque"
+    publish_node_name = "publisher_" + name
+    topic_name = topic_prefix + "/" + name
+
+    script_code = """
+# Expects three inputs:
+# - FTJoint [target] The fixed joint corresponding to the FT sensor, e.g. /World/ergoCubSN002/joints/l_foot_front_ft_sensor
+# - FTFrame [target] The link with respect to which express the measure, e.g. /World/ergoCubSN002/l_foot_front_ft
+# - flipMeasure [bool] A boolean to flip the measurement. By default (false), the measured wrench is the one exerted by the FT.
+
+# Expects two outputs:
+# - force [double[3]] The measured force
+# - torque [double[3]] The measured torque
+
+import isaacsim.core.utils.rotations as rotations_utils
+import isaacsim.core.utils.stage as stage_utils
+import isaacsim.core.utils.xforms as xforms_utils
+import numpy as np
+from isaacsim.core.api.robots import RobotView
+from pxr.UsdPhysics import Joint
+
+
+class CustomState:
+
+    def __init__(self):
+        self.robot_object = None
+        self.joint_index = None
+        self.sensor_transform = np.eye(4)
+
+
+def get_parent_robot(prim):
+    parent_prim = prim.GetParent()
+    while parent_prim.IsValid() and not parent_prim.HasAPI("IsaacRobotAPI"):
+        parent_prim = parent_prim.GetParent()
+
+    return parent_prim
+
+
+def get_a_H_b(a_prim, b_prim):
+    pos_a, quat_a = xforms_utils.get_world_pose(str(a_prim.GetPath()))
+    pos_b, quat_b = xforms_utils.get_world_pose(str(b_prim.GetPath()))
+    w_R_a = rotations_utils.quat_to_rot_matrix(quat_a)
+    w_R_b = rotations_utils.quat_to_rot_matrix(quat_b)
+
+    a_R_w = w_R_a.T
+    a_R_b = a_R_w @ w_R_b
+    a_P_b = a_R_w @ (pos_b - pos_a)
+
+    a_H_b = np.eye(4)
+    a_H_b[:3, :3] = a_R_b
+    a_H_b[:3, 3] = a_P_b
+
+    return a_H_b
+
+
+def create_robot_object(db):
+    FTJoint = db.inputs.FTJoint
+
+    if not FTJoint:
+        db.log_error(f"FTJoint input is empty")
+        return
+
+    stage = stage_utils.get_current_stage()
+
+    FTJoint_path = FTJoint[0].pathString
+    joint_prim = stage.GetPrimAtPath(FTJoint_path)
+    joint_name = joint_prim.GetName()
+
+    if not joint_prim.IsValid():
+        db.log_error(f"The joint prim ({joint_prim}) is not valid")
+        return
+
+    if not joint_prim.HasAPI("IsaacJointAPI"):
+        db.log_error(f"The specified prim ({joint_prim}) is not a joint")
+        return
+
+    parent_prim = get_parent_robot(joint_prim)
+
+    if not parent_prim.IsValid():
+        db.log_error(
+            f"Failed to find a parent to {joint_prim} that has the IsaacRobotAPI."
+            f"Is the joint attached to a robot?"
+        )
+        return
+
+    robot_object = RobotView(
+        prim_paths_expr=str(parent_prim.GetPath()), name=f"robot_ft_{FTJoint_path}"
+    )
+
+    if joint_name in robot_object.dof_names:
+        db.log_error(f"The FT joint {joint_name} is not fixed.")
+        return
+
+    # See https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.api/docs/index.html#isaacsim.core.api.robots.RobotView.get_measured_joint_forces
+
+    joint_index = robot_object.get_joint_index(joint_name) + 1
+
+    robot_object.initialize()
+
+    joint_api = Joint(joint_prim)
+    b1 = joint_api.GetBody1Rel().GetTargets()[0]
+    b1_prim = stage.GetPrimAtPath(b1)
+
+    FTFrameInput = db.inputs.FTFrame
+
+    if not FTFrameInput:
+        print(
+            f"No frame provided for FT joint {joint_name}. "
+            f"FT measures will be provided in the {b1_prim.GetName()} frame."
+        )
+        return robot_object, joint_index, np.eye(4)
+
+    FTFrame_prim = stage.GetPrimAtPath(FTFrameInput[0].pathString)
+
+    if not FTFrame_prim.IsValid():
+        db.log_error(f"The  prim ({FTFrame_prim}) is not valid")
+        return
+
+    FTFrame_robot_prim = get_parent_robot(FTFrame_prim)
+
+    if FTFrame_robot_prim != parent_prim:
+        db.log_error(
+            f"The specified prim ({FTFrame_prim}) has parent "
+            f"{FTFrame_robot_prim} that is different from {parent_prim}."
+        )
+        return
+
+    relative_transform = get_a_H_b(FTFrame_prim, b1_prim)
+
+    print(
+        f"Info: expressing {joint_name} readings in {FTFrame_prim.GetName()} "
+        f"with relative transform:"
+    )
+    print(relative_transform)
+
+    return robot_object, joint_index, relative_transform
+
+
+def internal_state():
+    return CustomState()
+
+
+def setup(db: og.Database) -> bool:
+    output = create_robot_object(db)
+    if not output:
+        db.log_error("Setup failed")
+        return False
+    robot_object, joint_index, sensor_transform = output
+    db.per_instance_state.robot_object = robot_object
+    db.per_instance_state.joint_index = joint_index
+    db.per_instance_state.sensor_transform = sensor_transform
+    return True
+
+
+def cleanup(db: og.Database):
+    db.per_instance_state.robot_object = None
+    db.per_instance_state.joint_index = None
+    db.per_instance_state.sensor_transform = np.eye(4)
+
+
+def compute(db: og.Database) -> bool:
+    state = db.per_instance_state
+    if not hasattr(state, "robot_object") or state.robot_object is None:
+        setup(db)
+        return False
+
+    out = state.robot_object.get_measured_joint_forces(
+        joint_indices=[state.joint_index]
+    )
+    if out is None:
+        db.log_warning(f"Failed to get measured joint forces. Running setup again")
+        setup(db)
+        return False
+    wrench = out.squeeze()
+
+    position = db.per_instance_state.sensor_transform[:3, 3]
+    rotation = db.per_instance_state.sensor_transform[:3, :3]
+
+    force = wrench[:3]
+    torque = wrench[3:]
+
+    db.outputs.force = rotation @ force
+    db.outputs.torque = rotation @ torque + np.cross(position, db.outputs.force)
+
+    if hasattr(db.inputs, "flipMeasure") and db.inputs.flipMeasure:
+        db.outputs.force *= -1
+        db.outputs.torque *= -1
+
+    return True
+
+    """
+
+    return {
+        graph_keys.CREATE_NODES: [
+            (script_node_name, "omni.graph.scriptnode.ScriptNode"),
+            (break_force_node_name, "omni.graph.nodes.BreakVector3"),
+            (break_torque_node_name, "omni.graph.nodes.BreakVector3"),
+            (publish_node_name, "isaacsim.ros2.bridge.ROS2Publisher"),
+        ],
+        graph_keys.CREATE_ATTRIBUTES: [
+            (script_node_name + ".inputs:FTJoint", "target"),
+            (script_node_name + ".inputs:FTFrame", "target"),
+            (script_node_name + ".inputs:flipMeasure", "bool"),
+            (script_node_name + ".outputs:force", "double[3]"),
+            (script_node_name + ".outputs:torque", "double[3]"),
+            # The following would be created automatically after creation
+            # but in order to connect to them, we create them manually
+            (publish_node_name + ".inputs:force:x", "double"),
+            (publish_node_name + ".inputs:force:y", "double"),
+            (publish_node_name + ".inputs:force:z", "double"),
+            (publish_node_name + ".inputs:torque:x", "double"),
+            (publish_node_name + ".inputs:torque:y", "double"),
+            (publish_node_name + ".inputs:torque:z", "double"),
+        ],
+        graph_keys.SET_VALUES: [
+            (script_node_name + ".inputs:FTJoint", joint),
+            (script_node_name + ".inputs:FTFrame", frame),
+            (script_node_name + ".inputs:flipMeasure", flip),
+            (script_node_name + ".inputs:script", script_code),
+            (publish_node_name + ".inputs:messageName", "Wrench"),
+            (publish_node_name + ".inputs:messagePackage", "geometry_msgs"),
+            (
+                publish_node_name + ".inputs:topicName",
+                topic_name,
+            ),
+        ],
+        graph_keys.PROMOTE_ATTRIBUTES: [
+            (script_node_name + ".inputs:execIn", "inputs:execIn"),
+            (publish_node_name + ".inputs:context", "inputs:context"),
+        ],
+        graph_keys.CONNECT: [
+            (
+                script_node_name + ".outputs:execOut",
+                publish_node_name + ".inputs:execIn",
+            ),
+            (
+                script_node_name + ".outputs:force",
+                break_force_node_name + ".inputs:tuple",
+            ),
+            (
+                break_force_node_name + ".outputs:x",
+                publish_node_name + ".inputs:force:x",
+            ),
+            (
+                break_force_node_name + ".outputs:y",
+                publish_node_name + ".inputs:force:y",
+            ),
+            (
+                break_force_node_name + ".outputs:z",
+                publish_node_name + ".inputs:force:z",
+            ),
+            (
+                script_node_name + ".outputs:torque",
+                break_torque_node_name + ".inputs:tuple",
+            ),
+            (
+                break_torque_node_name + ".outputs:x",
+                publish_node_name + ".inputs:torque:x",
+            ),
+            (
+                break_torque_node_name + ".outputs:y",
+                publish_node_name + ".inputs:torque:y",
+            ),
+            (
+                break_torque_node_name + ".outputs:z",
+                publish_node_name + ".inputs:torque:z",
+            ),
+        ],
+    }
+
+
+def create_ft_compound(graph_keys, settings):
+    if len(settings.FTs) == 0:
+        return
+
+    ft_compounds = []
+    first_compound = None
+    connections = []
+
+    compound_name = "ros2_FTs_compound"
+    for ft in settings.FTs:
+        subcompound_name = ft.name + "_compound"
+        ft_compounds.append(
+            (
+                subcompound_name,
+                create_ft_subcompound(
+                    graph_keys,
+                    ft.name,
+                    ft.joint,
+                    ft.frame,
+                    ft.flip,
+                    settings.topic_prefix + "/FT",
+                ),
+            )
+        )
+        if not first_compound:
+            # Only the first compound gets the attributes promoted
+            first_compound = subcompound_name
+        else:
+            # Add the connections to the inner compound inputs for the internal inputs
+            # that have not been promoted
+            connections.append(
+                (compound_name + ".inputs:execIn", subcompound_name + ".inputs:execIn")
+            )
+            connections.append(
+                (
+                    compound_name + ".inputs:context",
+                    subcompound_name + ".inputs:context",
+                )
+            )
+
+    connections.append(("tick.outputs:tick", compound_name + ".inputs:execIn"))
+    connections.append(
+        ("ros2_context.outputs:context", compound_name + ".inputs:context")
+    )
+
+    return {
+        graph_keys.CREATE_NODES: [
+            (
+                compound_name,
+                {
+                    graph_keys.CREATE_NODES: ft_compounds,
+                    graph_keys.PROMOTE_ATTRIBUTES: [
+                        (first_compound + ".inputs:execIn", "inputs:execIn"),
+                        (first_compound + ".inputs:context", "inputs:context"),
+                    ],
+                },
+            )
+        ],
+        graph_keys.CONNECT: connections,
+    }
+
+
 keys = og.Controller.Keys
 s = Settings()
 cmds = {}
@@ -421,10 +815,9 @@ cmds_dicts = [
     add_ros2_joint_compound(keys, s),
     create_imu_compounds(keys, s),
     create_camera_compounds(keys, s),
+    create_ft_compound(keys, s),
 ]
 cmds = merge_actions(cmds_dicts)
-
-print(cmds)
 
 (graph, nodes, prims, name_to_object_map) = og.Controller.edit(
     {"graph_path": s.graph_path, "evaluator_name": "execution"},
