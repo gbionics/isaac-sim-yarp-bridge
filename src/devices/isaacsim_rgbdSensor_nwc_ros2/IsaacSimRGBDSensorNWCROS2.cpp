@@ -4,6 +4,8 @@
 #include <yarp/os/LogComponent.h>
 #include <yarp/os/LogStream.h>
 #include <sensor_msgs/image_encodings.hpp>
+#include <rclcpp/rclcpp.hpp>
+
 
 YARP_DECLARE_LOG_COMPONENT(RGBD)
 YARP_LOG_COMPONENT(RGBD, "yarp.device.IsaacSimRGBDSensorNWCROS2")
@@ -28,7 +30,10 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::open(yarp::os::Searchable& config)
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::close()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_receivedOnce = false;
+    m_rgbReceivedOnce = false;
+    m_depthReceivedOnce = false;
+    m_rgbInfoReceivedOnce = false;
+    m_depthInfoReceivedOnce = false;
     if (m_subscriber)
     {
         m_subscriber.reset();
@@ -39,116 +44,232 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::close()
 
 int yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbHeight()
 {
-    return 0;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_rgbInfoReceivedOnce)
+    {
+        m_errorHandler.setPrefix("[getRgbHeight] ");
+        m_errorHandler << "RGB camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        return 0;
+    }
+
+    return m_rgbImage.height();
 }
 
 int yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbWidth()
 {
-    return 0;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_rgbInfoReceivedOnce)
+    {
+        m_errorHandler.setPrefix("[getRgbWidth] ");
+        m_errorHandler << "RGB camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        return 0;
+    }
+    return m_rgbImage.width();
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbSupportedConfigurations(yarp::sig::VectorOf<yarp::dev::CameraConfig>& configurations)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_rgbInfoReceivedOnce)
+    {
+        m_errorHandler.setPrefix("[getRgbSupportedConfigurations] ");
+        m_errorHandler << "RGB camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        return false;
+    }
+
+    configurations.clear();
+    yarp::dev::CameraConfig config;
+    config.width = m_rgbImage.width();
+    config.height = m_rgbImage.height();
+    config.pixelCoding = VOCAB_PIXEL_RGB;
+    config.framerate = m_estimatedRGBFrameRate;
+
+    configurations.push_back(config);
+
+    return true;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbResolution(int& width, int& height)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[getRgbResolution] ");
+    if (!m_rgbInfoReceivedOnce)
+    {
+        m_errorHandler << "RGB camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        return false;
+    }
+    width = m_rgbImage.width();
+    height = m_rgbImage.height();
+    return true;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::setRgbResolution(int width, int height)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[setRgbResolution] ");
+    m_errorHandler << "Setting RGB resolution is not supported. The resolution is determined by Isaac Sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbFOV(double& horizontalFov, double& verticalFov)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[getRgbFOV] ");
+    m_errorHandler << "Getting RGB FOV is not supported. The FOV is determined by Isaac Sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::setRgbFOV(double horizontalFov, double verticalFov)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[setRgbFOV] ");
+    m_errorHandler << "Setting RGB FOV is not supported. The FOV is determined by Isaac Sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbMirroring(bool& mirror)
 {
-    return false;
+    mirror = false; // Assuming no mirroring by default
+    return true;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::setRgbMirroring(bool mirror)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[setRgbMirroring] ");
+    m_errorHandler << "Setting RGB mirroring is not supported. The mirroring is determined by Isaac Sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbIntrinsicParam(yarp::os::Property& intrinsic)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[getRgbIntrinsicParam] ");
+    if (!m_rgbInfoReceivedOnce)
+    {
+        m_errorHandler << "RGB camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        return false;
+    }
+    intrinsic.clear();
+    m_rgbIntrinsic.toProperty(intrinsic);
+    return true;
 }
 
 int yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthHeight()
 {
-    return 0;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_depthInfoReceivedOnce)
+    {
+        m_errorHandler.setPrefix("[getDepthHeight] ");
+        m_errorHandler << "Depth camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        return 0;
+    }
+    return m_depthImage.height();
 }
 
 int yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthWidth()
 {
-    return 0;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_depthInfoReceivedOnce)
+    {
+        m_errorHandler.setPrefix("[getDepthWidth] ");
+        m_errorHandler << "Depth camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        return 0;
+    }
+    return m_depthImage.width();
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::setDepthResolution(int width, int height)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[setDepthResolution] ");
+    m_errorHandler << "Setting depth resolution is not supported. The resolution is determined by Isaac Sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthFOV(double& horizontalFov, double& verticalFov)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[getDepthFOV] ");
+    m_errorHandler << "Getting depth FOV is not supported. The FOV is determined by Isaac Sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::setDepthFOV(double horizontalFov, double verticalFov)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[setDepthFOV] ");
+    m_errorHandler << "Setting depth FOV is not supported. The FOV is determined by Isaac Sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthIntrinsicParam(yarp::os::Property& intrinsic)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[getDepthIntrinsicParam] ");
+    if (!m_depthInfoReceivedOnce)
+    {
+        m_errorHandler << "Depth camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        return false;
+    }
+    intrinsic.clear();
+    m_depthIntrinsic.toProperty(intrinsic);
+    return true;
 }
 
 double yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthAccuracy()
 {
-    return 0.0;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[getDepthAccuracy] ");
+    m_errorHandler << "Getting depth accuracy is not supported. The accuracy is determined by Isaac Sim.";
+    return 0.0; // Return 0.0 to indicate unsupported feature
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::setDepthAccuracy(double accuracy)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[setDepthAccuracy] ");
+    m_errorHandler << "Setting depth accuracy is not supported. The accuracy is determined by Isaac Sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthClipPlanes(double& nearPlane, double& farPlane)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[getDepthClipPlanes] ");
+    m_errorHandler << "Getting depth clip planes is not supported. The clip planes are determined by Isaac Sim.";
+    nearPlane = 0.0; // Default value
+    farPlane = 0.0;  // Default value
     return false;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::setDepthClipPlanes(double nearPlane, double farPlane)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[setDepthClipPlanes] ");
+    m_errorHandler << "Setting depth clip planes is not supported. The clip planes are determined by Isaac Sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthMirroring(bool& mirror)
 {
-    return false;
+    mirror = false; // Assuming no mirroring by default
+    return true;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::setDepthMirroring(bool mirror)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[setDepthMirroring] ");
+    m_errorHandler << "Setting depth mirroring is not supported. The mirroring is determined by Isaac Sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getExtrinsicParam(yarp::sig::Matrix& extrinsic)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_errorHandler.setPrefix("[getExtrinsicParam] ");
+    m_errorHandler << "Getting extrinsic parameters is not supported. The extrinsics are determined by Isaac Sim.";
     return false;
 }
 
@@ -156,9 +277,9 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbImage(yarp::sig::FlexImage& rgb
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_errorHandler.setPrefix("[getRgbImage] ");
-    if (!m_receivedOnce)
+    if (!m_rgbReceivedOnce)
     {
-        m_errorHandler << "No images received yet. Please ensure the ROS2 topics are publishing data.";
+        m_errorHandler << "No RGB image received yet. Please ensure the ROS2 topics are publishing data.";
         return false;
     }
 
@@ -176,9 +297,9 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthImage(yarp::sig::ImageOf<yarp
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_errorHandler.setPrefix("[getDepthImage] ");
-    if (!m_receivedOnce)
+    if (!m_depthReceivedOnce)
     {
-        m_errorHandler << "No images received yet. Please ensure the ROS2 topics are publishing data.";
+        m_errorHandler << "No depth image received yet. Please ensure the ROS2 topics are publishing data.";
         return false;
     }
 
@@ -196,9 +317,15 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getImages(yarp::sig::FlexImage& color
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_errorHandler.setPrefix("[getImages] ");
-    if (!m_receivedOnce)
+    if (!m_rgbReceivedOnce)
     {
-        m_errorHandler << "No images received yet. Please ensure the ROS2 topics are publishing data.";
+        m_errorHandler << "No RGB image received yet. Please ensure the ROS2 topics are publishing data.";
+        return false;
+    }
+
+    if (!m_depthReceivedOnce)
+    {
+        m_errorHandler << "No Depth image received yet. Please ensure the ROS2 topics are publishing data.";
         return false;
     }
 
@@ -219,7 +346,7 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getImages(yarp::sig::FlexImage& color
 
 yarp::dev::IRGBDSensor::RGBDSensor_status yarp::dev::IsaacSimRGBDSensorNWCROS2::getSensorStatus()
 {
-    if (!m_receivedOnce)
+    if (!m_rgbReceivedOnce && !m_depthReceivedOnce)
     {
         return RGBDSensor_status::RGBD_SENSOR_NOT_READY;
     }
@@ -232,7 +359,7 @@ std::string yarp::dev::IsaacSimRGBDSensorNWCROS2::getLastErrorMsg(yarp::os::Stam
     return m_errorHandler.getLastErrorMsg();
 }
 
-void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateImages(const sensor_msgs::msg::Image::ConstSharedPtr& rgb, const sensor_msgs::msg::Image::ConstSharedPtr& depth)
+void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateRGB(const sensor_msgs::msg::Image::ConstSharedPtr& rgb)
 {
     // The code of these conversions have been ispired from
     // https://github.com/robotology/yarp-devices-ros2/blob/e1b9c86aa91c0fb3a14c6d2415e75c3868e222dc/src/devices/ros2RGBDConversionUtils/Ros2RGBDConversionUtils.cpp
@@ -252,7 +379,8 @@ void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateImages(const sensor_msgs::msg::
     }
     else
     {
-        yCError(RGBD) << "Unsupported RGB pixel type:" << rosPixelType;
+        m_errorHandler.setPrefix("[updateRGB] ");
+        m_errorHandler << "Unsupported RGB pixel type: " + rosPixelType;
         return;
     }
     m_rgbImage.setQuantum(0);
@@ -265,7 +393,25 @@ void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateImages(const sensor_msgs::msg::
     {
         rgbData[c++] = *it;
     }
-    m_rgbTimestamp.update(rgb->header.stamp.sec + (rgb->header.stamp.nanosec / 1e9));
+
+    double rgb_time = rgb->header.stamp.sec + (rgb->header.stamp.nanosec / 1e9);
+
+    if (m_rgbReceivedOnce)
+    {
+        m_estimatedRGBFrameRate = 1.0 / (rgb_time - m_rgbTimestamp.getTime());
+    }
+
+    m_rgbTimestamp.update(rgb_time);
+    m_rgbReceivedOnce = true;
+}
+
+void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateDepth(const sensor_msgs::msg::Image::ConstSharedPtr& depth)
+{
+    // The code of these conversions have been ispired from
+    // https://github.com/robotology/yarp-devices-ros2/blob/e1b9c86aa91c0fb3a14c6d2415e75c3868e222dc/src/devices/ros2RGBDConversionUtils/Ros2RGBDConversionUtils.cpp
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const auto& rosPixelType = depth->encoding;
 
     if (depth->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
     {
@@ -294,12 +440,47 @@ void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateImages(const sensor_msgs::msg::
     }
     else
     {
-        yCError(RGBD) << "Unsupported depth format:" << rosPixelType;
+        m_errorHandler.setPrefix("[updateDepth] ");
+        m_errorHandler << "Unsupported depth pixel type: " + rosPixelType;
         return;
     }
-    m_depthTimestamp.update(depth->header.stamp.sec + (depth->header.stamp.nanosec / 1e9));
+    double depth_time = depth->header.stamp.sec + (depth->header.stamp.nanosec / 1e9);
+    if (m_depthReceivedOnce)
+    {
+        m_estimatedDepthFrameRate = 1.0 / (depth_time - m_depthTimestamp.getTime());
+    }
+    m_depthTimestamp.update(depth_time);
+    m_depthReceivedOnce = true;
+}
 
-    m_receivedOnce = true;
+yarp::sig::IntrinsicParams yarp::dev::IsaacSimRGBDSensorNWCROS2::convertCameraInfoToIntrinsic(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& cameraInfo)
+{
+    yarp::sig::IntrinsicParams output;
+    // See https://docs.isaacsim.omniverse.nvidia.com/5.0.0/ros2_tutorials/tutorial_ros2_camera.html#camera-info-helper-node
+    output.focalLengthX = cameraInfo->k[0];
+    output.focalLengthY = cameraInfo->k[4];
+    output.principalPointX = cameraInfo->k[2];
+    output.principalPointY = cameraInfo->k[5];
+
+    output.distortionModel.type = yarp::sig::YarpDistortion::YARP_DISTORTION_NONE;
+    // Even though the distortion model is specified in the CameraInfo,
+    // it seems that the inputs provided by IsaacSim cannot be converted
+    // to a YARP distortion model, so we set it to none.
+    return output;
+}
+
+void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateRGBInfo(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& rgbInfo)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_rgbIntrinsic = convertCameraInfoToIntrinsic(rgbInfo);
+    m_rgbInfoReceivedOnce = true;
+}
+
+void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateDepthInfo(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& depthInfo)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_depthIntrinsic = convertCameraInfoToIntrinsic(depthInfo);
+    m_depthInfoReceivedOnce = true;
 }
 
 yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::RGBDSubscriber(const std::string& name, const std::string& rgbTopic, const std::string& depthTopic, IsaacSimRGBDSensorNWCROS2* parent)
@@ -307,21 +488,43 @@ yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::RGBDSubscriber(const std::
 {
     m_parent = parent; // Store the parent device pointer
 
-    // Create message_filters subscribers
-    m_rgb_sub.subscribe(this, rgbTopic);
-    m_depth_sub.subscribe(this, depthTopic);
+    int queue_size = 10;
 
-    const uint32_t queue_size = 10; // Default queue size for synchronization
+    // Subscribe to RGB and Depth topics
+    m_rgb_sub = this->create_subscription<sensor_msgs::msg::Image>(
+    rgbTopic, queue_size,
+        std::bind(&RGBDSubscriber::callback_rgb, this, std::placeholders::_1));
+    m_depth_sub = this->create_subscription<sensor_msgs::msg::Image>(
+    depthTopic, queue_size,
+        std::bind(&RGBDSubscriber::callback_depth, this, std::placeholders::_1));
 
-    // ApproximateTimeSynchronizer setup
-    m_sync = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(
-        SyncPolicy(queue_size), m_rgb_sub, m_depth_sub);
-    m_sync->registerCallback(std::bind(&RGBDSubscriber::callback, this, std::placeholders::_1, std::placeholders::_2));
+    // Subscribe to CameraInfo topics
+    m_rgb_info_sub = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+        rgbTopic + "/info", queue_size,
+        std::bind(&RGBDSubscriber::callback_rgb_info, this, std::placeholders::_1));
+    m_depth_info_sub = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+        depthTopic + "/info", queue_size,
+        std::bind(&RGBDSubscriber::callback_depth_info, this, std::placeholders::_1));
 }
 
-void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback(const sensor_msgs::msg::Image::ConstSharedPtr& rgb, const sensor_msgs::msg::Image::ConstSharedPtr& depth)
+void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback_rgb(const sensor_msgs::msg::Image::ConstSharedPtr& rgb)
 {
-    m_parent->updateImages(rgb, depth);
+    m_parent->updateRGB(rgb);
+}
+
+void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback_depth(const sensor_msgs::msg::Image::ConstSharedPtr& depth)
+{
+    m_parent->updateDepth(depth);
+}
+
+inline void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback_rgb_info(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& rgbInfo)
+{
+    m_parent->updateRGBInfo(rgbInfo);
+}
+
+void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback_depth_info(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& depthInfo)
+{
+    m_parent->updateDepthInfo(depthInfo);
 }
 
 void yarp::dev::IsaacSimRGBDSensorNWCROS2::ErrorHandler::setPrefix(const std::string& prefix)

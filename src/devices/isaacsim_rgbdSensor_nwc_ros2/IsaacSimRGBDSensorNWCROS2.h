@@ -7,11 +7,11 @@
 #include <yarp/dev/DeviceDriver.h>
 #include <yarp/os/PeriodicThread.h>
 #include <yarp/dev/IRGBDSensor.h>
+#include <yarp/sig/IntrinsicParams.h>
 
 #include <rclcpp/node.hpp>
-#include <message_filters/sync_policies/approximate_time.h>
-#include <message_filters/subscriber.h>
 #include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
 
 #include <memory>
 #include <mutex>
@@ -79,17 +79,19 @@ private:
     public:
         RGBDSubscriber(const std::string& name, const std::string& rgbTopic, const std::string& depthTopic, IsaacSimRGBDSensorNWCROS2* parent);
     private:
-        typedef message_filters::sync_policies::ApproximateTime<
-            sensor_msgs::msg::Image,
-            sensor_msgs::msg::Image
-        > SyncPolicy;
 
-        void callback(const sensor_msgs::msg::Image::ConstSharedPtr& rgb,
-            const sensor_msgs::msg::Image::ConstSharedPtr& depth);
+        void callback_rgb(const sensor_msgs::msg::Image::ConstSharedPtr& rgb);
 
-        message_filters::Subscriber<sensor_msgs::msg::Image> m_rgb_sub;
-        message_filters::Subscriber<sensor_msgs::msg::Image> m_depth_sub;
-        std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> m_sync;
+        void callback_depth(const sensor_msgs::msg::Image::ConstSharedPtr& depth);
+
+        void callback_rgb_info(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& rgbInfo);
+
+        void callback_depth_info(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& depthInfo);
+
+        rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_rgb_sub;
+        rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_depth_sub;
+        rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr m_rgb_info_sub;
+        rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr m_depth_info_sub;
         IsaacSimRGBDSensorNWCROS2* m_parent; // Pointer to the parent device to call updateImages
     };
 
@@ -105,16 +107,30 @@ private:
         const std::string& getLastErrorMsg() const;
     };
 
-    void updateImages(const sensor_msgs::msg::Image::ConstSharedPtr& rgb,
-        const sensor_msgs::msg::Image::ConstSharedPtr& depth);
+    void updateRGB(const sensor_msgs::msg::Image::ConstSharedPtr& rgb);
+
+    void updateDepth(const sensor_msgs::msg::Image::ConstSharedPtr& depth);
+
+    yarp::sig::IntrinsicParams convertCameraInfoToIntrinsic(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& cameraInfo);
+
+    void updateRGBInfo(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& rgbInfo);
+
+    void updateDepthInfo(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& depthInfo);
 
     IsaacSimRGBDSensorNWCROS2_ParamsParser m_paramsParser;
     std::shared_ptr<RGBDSubscriber> m_subscriber;
-    std::atomic<bool> m_receivedOnce{ false };
+    std::atomic<bool> m_rgbReceivedOnce{ false };
+    std::atomic<bool> m_depthReceivedOnce{ false };
+    std::atomic<bool> m_rgbInfoReceivedOnce{ false };
+    std::atomic<bool> m_depthInfoReceivedOnce{ false };
     yarp::os::Stamp m_rgbTimestamp;
     yarp::os::Stamp m_depthTimestamp;
+    double m_estimatedRGBFrameRate{ 0.0 };
+    double m_estimatedDepthFrameRate{ 0.0 };
     yarp::sig::FlexImage m_rgbImage;
     yarp::sig::ImageOf<yarp::sig::PixelFloat> m_depthImage;
+    yarp::sig::IntrinsicParams m_rgbIntrinsic;
+    yarp::sig::IntrinsicParams m_depthIntrinsic;
     ErrorHandler m_errorHandler;
     std::mutex m_mutex;
 };
