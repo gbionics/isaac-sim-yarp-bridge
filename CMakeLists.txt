@@ -80,11 +80,6 @@ find_package(message_filters REQUIRED)
 find_package(YCM REQUIRED)
 find_package(YARP REQUIRED)
 
-option(BUILD_TESTING "Create tests using CMake" OFF)
-if(BUILD_TESTING)
-    enable_testing()
-endif()
-
 set(YARP_FORCE_DYNAMIC_PLUGINS TRUE CACHE INTERNAL "isaac-sim-yarp-bridge is always built with dynamic plugins")
 set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "Build libraries as shared as opposed to static")
 
@@ -99,3 +94,10 @@ include(AddUninstallTarget)
 yarp_configure_plugins_installation(isaac-sim-yarp-bridge)
 
 add_subdirectory(src)
+
+option(BUILD_TESTING "Create tests using CMake" OFF)
+if(BUILD_TESTING)
+    find_package(Catch2 3.0.1 REQUIRED)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

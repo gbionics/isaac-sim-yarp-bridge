@@ -1,32 +1,34 @@
 # SPDX-FileCopyrightText: Fondazione Istituto Italiano di Tecnologia (IIT)
 # SPDX-License-Identifier: BSD-2-Clause
 
-yarp_prepare_plugin(IsaacSimRGBDSensorNWCROS2
+set(plugin_name IsaacSimRGBDSensorNWCROS2)
+
+yarp_prepare_plugin(${plugin_name}
   CATEGORY device
-  TYPE yarp::dev::IsaacSimRGBDSensorNWCROS2
+  TYPE yarp::dev::${plugin_name}
   INCLUDE IsaacSimRGBDSensorNWCROS2.h
   OPTION ENABLE_IsaacSimRGBDSensorNWCROS2
   DEFAULT ON
 )
 
-if (SKIP_IsaacSimRGBDSensorNWCROS2)
-  message(STATUS "Skipping IsaacSimRGBDSensorNWCROS2 plugin")
+if (SKIP_${plugin_name})
+  message(STATUS "Skipping ${plugin_name} plugin")
   return()
 endif()
 
-yarp_add_plugin(IsaacSimRGBDSensorNWCROS2)
-generateDeviceParamsParser(IsaacSimRGBDSensorNWCROS2 IsaacSimRGBDSensorNWCROS2)
 
-target_sources(IsaacSimRGBDSensorNWCROS2
-  PRIVATE
+yarp_add_plugin(${plugin_name})
+generateDeviceParamsParser(${plugin_name} ${plugin_name})
+
+add_library(${plugin_name}_lib
     IsaacSimRGBDSensorNWCROS2.cpp
     IsaacSimRGBDSensorNWCROS2.h
     IsaacSimRGBDSensorNWCROS2_ParamsParser.h
     IsaacSimRGBDSensorNWCROS2_ParamsParser.cpp
 )
 
-target_link_libraries(IsaacSimRGBDSensorNWCROS2
-  PRIVATE
+target_link_libraries(${plugin_name}_lib
+  PUBLIC
   YARP::YARP_os
   YARP::YARP_sig
   YARP::YARP_dev
@@ -35,12 +37,17 @@ target_link_libraries(IsaacSimRGBDSensorNWCROS2
   message_filters::message_filters
 )
 
-target_compile_features(IsaacSimRGBDSensorNWCROS2 PUBLIC cxx_std_17)
+target_compile_features(${plugin_name}_lib PUBLIC cxx_std_17)
+
+target_link_libraries(${plugin_name}
+  PUBLIC
+  ${plugin_name}_lib
+)
 
 yarp_install(
-  TARGETS IsaacSimRGBDSensorNWCROS2
-  EXPORT IsaacSimRGBDSensorNWCROS2
-  COMPONENT IsaacSimRGBDSensorNWCROS2
+  TARGETS ${plugin_name}
+  EXPORT ${plugin_name}
+  COMPONENT ${plugin_name}
   LIBRARY DESTINATION ${YARP_DYNAMIC_PLUGINS_INSTALL_DIR}
   ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR}
   YARP_INI DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR}
