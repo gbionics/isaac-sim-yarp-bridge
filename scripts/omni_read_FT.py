@@ -136,8 +136,9 @@ def create_robot_object(db):
 
     print(
         f"Info: expressing {joint_name} readings in {FTFrame_prim.GetName()} "
-        f"with relative transform \n{relative_transform}."
+        f"with relative transform:"
     )
+    print(relative_transform)
 
     return robot_object, joint_index, relative_transform
 

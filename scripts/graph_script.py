@@ -20,77 +20,76 @@ class FT:
 
 class Settings:
     def __init__(self):
-        self.graph_path = "/action_graph"
-        self.robot_path = "/World/ergoCubSN002/ergoCubSN002"
+        self.graph_path = "/World/ergoCubSN002/ros2_action_graph"
+        self.robot_path = "/World/ergoCubSN002/robot"
         self.articulation_root = self.robot_path + "/root_link"
         self.topic_prefix = "/ergocub"
         self.imus = {
-            "waist_imu_0": self.robot_path + "/waist_imu_0/waist_imu_0",
-            "head_imu_0": self.robot_path + "/head_imu_0/head_imu_0",
+            "waist_imu_0": self.robot_path + "/torso_1/waist_imu_0_sensor",
+            "head_imu_0": self.robot_path + "/head/head_imu_0_sensor",
         }
-        realsense_prefix = self.robot_path + "/realsense/"
+        realsense_prefix = self.robot_path + "/realsense/sensors/RSD455"
         self.cameras = [
             Camera(
                 prefix="realsense",
                 suffix="rgb",
                 type="rgb",
-                target=realsense_prefix
-                + "rsd455/RSD455/Camera_OmniVision_OV9782_Color",
+                target=realsense_prefix + "/Camera_OmniVision_OV9782_Color",
             ),
             Camera(
                 prefix="realsense",
                 suffix="depth",
                 type="depth",
-                target=realsense_prefix + "rsd455/RSD455/Camera_Pseudo_Depth",
+                target=realsense_prefix + "/Camera_Pseudo_Depth",
             ),
         ]
         self.FTs = [
             FT(
                 name="l_leg_ft",
                 joint=self.robot_path + "/joints/l_leg_ft_sensor",
-                frame=self.robot_path + "/l_leg_ft",
+                frame=self.robot_path + "/l_hip_2/l_leg_ft",
                 flip=False,
             ),
             FT(
                 name="l_foot_front_ft",
                 joint=self.robot_path + "/joints/l_foot_front_ft_sensor",
-                frame=self.robot_path + "/l_foot_front_ft",
+                frame=self.robot_path + "/l_ankle_2/l_foot_front_ft",
                 flip=False,
             ),
             FT(
                 name="l_foot_rear_ft",
                 joint=self.robot_path + "/joints/l_foot_rear_ft_sensor",
-                frame=self.robot_path + "/l_foot_rear_ft",
+                frame=self.robot_path + "/l_ankle_2/l_foot_rear_ft",
                 flip=False,
             ),
             FT(
                 name="r_leg_ft",
                 joint=self.robot_path + "/joints/r_leg_ft_sensor",
-                frame=self.robot_path + "/r_leg_ft",
+                frame=self.robot_path + "/r_hip_2/r_leg_ft",
                 flip=False,
             ),
             FT(
                 name="r_foot_front_ft",
                 joint=self.robot_path + "/joints/r_foot_front_ft_sensor",
-                frame=self.robot_path + "/r_foot_front_ft",
+                frame=self.robot_path + "/r_ankle_2/r_foot_front_ft",
                 flip=False,
             ),
             FT(
                 name="r_foot_rear_ft",
                 joint=self.robot_path + "/joints/r_foot_rear_ft_sensor",
-                frame=self.robot_path + "/r_foot_rear_ft",
+                frame=self.robot_path + "/r_ankle_2/r_foot_rear_ft",
                 flip=False,
             ),
             FT(
                 name="l_arm_ft",
                 joint=self.robot_path + "/joints/l_arm_ft_sensor",
-                frame=self.robot_path + "/l_arm_ft",
+                frame=self.robot_path + "/l_shoulder_2/l_arm_ft",
                 flip=False,
             ),
             FT(
                 name="r_arm_ft",
                 joint=self.robot_path + "/joints/r_arm_ft_sensor",
-                frame=self.robot_path + "/r_arm_ft",
+                frame=self.robot_path + "/r_shoulder_2/r_arm_ft",
                 flip=False,
             ),
         ]
