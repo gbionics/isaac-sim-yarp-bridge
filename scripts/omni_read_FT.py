@@ -19,8 +19,9 @@
 # - force [double[3]] The measured force
 # - torque [double[3]] The measured torque
 
+import isaacsim.core.utils.rotations as rotations_utils
 import isaacsim.core.utils.stage as stage_utils
-import isaacsim.core.utils.transformations as transformations_utils
+import isaacsim.core.utils.xforms as xforms_utils
 import numpy as np
 from isaacsim.core.api.robots import RobotView
 from pxr.UsdPhysics import Joint
@@ -40,6 +41,23 @@ def get_parent_robot(prim):
         parent_prim = parent_prim.GetParent()
 
     return parent_prim
+
+
+def get_a_H_b(a_prim, b_prim):
+    pos_a, quat_a = xforms_utils.get_world_pose(str(a_prim.GetPath()))
+    pos_b, quat_b = xforms_utils.get_world_pose(str(b_prim.GetPath()))
+    w_R_a = rotations_utils.quat_to_rot_matrix(quat_a)
+    w_R_b = rotations_utils.quat_to_rot_matrix(quat_b)
+
+    a_R_w = w_R_a.T
+    a_R_b = a_R_w @ w_R_b
+    a_P_b = a_R_w @ (pos_b - pos_a)
+
+    a_H_b = np.eye(4)
+    a_H_b[:3, :3] = a_R_b
+    a_H_b[:3, 3] = a_P_b
+
+    return a_H_b
 
 
 def create_robot_object(db):
@@ -105,10 +123,6 @@ def create_robot_object(db):
         db.log_error(f"The  prim ({FTFrame_prim}) is not valid")
         return
 
-    if not FTFrame_prim.HasAPI("IsaacLinkAPI"):
-        db.log_error(f"The specified prim ({FTFrame_prim}) is not a link.")
-        return
-
     FTFrame_robot_prim = get_parent_robot(FTFrame_prim)
 
     if FTFrame_robot_prim != parent_prim:
@@ -118,14 +132,13 @@ def create_robot_object(db):
         )
         return
 
-    relative_transform = transformations_utils.get_relative_transform(
-        FTFrame_prim, b1_prim
-    )
+    relative_transform = get_a_H_b(FTFrame_prim, b1_prim)
 
     print(
         f"Info: expressing {joint_name} readings in {FTFrame_prim.GetName()} "
-        f"with relative transform \n{relative_transform}."
+        f"with relative transform:"
     )
+    print(relative_transform)
 
     return robot_object, joint_index, relative_transform
 
