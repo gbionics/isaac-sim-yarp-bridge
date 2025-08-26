@@ -57,10 +57,10 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::close()
 int yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbHeight()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (!m_rgbInfoReceivedOnce)
+    if (!m_rgbReceivedOnce)
     {
         m_errorHandler.setPrefix("[getRgbHeight] ");
-        m_errorHandler << "RGB camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        m_errorHandler << "RGB image not received yet. Please ensure the ROS2 topics are publishing data.";
         return 0;
     }
 
@@ -70,10 +70,10 @@ int yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbHeight()
 int yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbWidth()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (!m_rgbInfoReceivedOnce)
+    if (!m_rgbReceivedOnce)
     {
         m_errorHandler.setPrefix("[getRgbWidth] ");
-        m_errorHandler << "RGB camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        m_errorHandler << "RGB image not received yet. Please ensure the ROS2 topics are publishing data.";
         return 0;
     }
     return m_rgbImage.width();
@@ -82,10 +82,10 @@ int yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbWidth()
 bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbSupportedConfigurations(yarp::sig::VectorOf<yarp::dev::CameraConfig>& configurations)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (!m_rgbInfoReceivedOnce)
+    if (!m_rgbReceivedOnce)
     {
         m_errorHandler.setPrefix("[getRgbSupportedConfigurations] ");
-        m_errorHandler << "RGB camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        m_errorHandler << "RGB image not received yet. Please ensure the ROS2 topics are publishing data.";
         return false;
     }
 
@@ -105,9 +105,9 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbResolution(int& width, int& hei
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_errorHandler.setPrefix("[getRgbResolution] ");
-    if (!m_rgbInfoReceivedOnce)
+    if (!m_rgbReceivedOnce)
     {
-        m_errorHandler << "RGB camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        m_errorHandler << "RGB image not received yet. Please ensure the ROS2 topics are publishing data.";
         return false;
     }
     width = m_rgbImage.width();
@@ -170,10 +170,10 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbIntrinsicParam(yarp::os::Proper
 int yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthHeight()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (!m_depthInfoReceivedOnce)
+    if (!m_depthReceivedOnce)
     {
         m_errorHandler.setPrefix("[getDepthHeight] ");
-        m_errorHandler << "Depth camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        m_errorHandler << "Depth image not received yet. Please ensure the ROS2 topics are publishing data.";
         return 0;
     }
     return m_depthImage.height();
@@ -182,10 +182,10 @@ int yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthHeight()
 int yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthWidth()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (!m_depthInfoReceivedOnce)
+    if (!m_depthReceivedOnce)
     {
         m_errorHandler.setPrefix("[getDepthWidth] ");
-        m_errorHandler << "Depth camera info not received yet. Please ensure the ROS2 topics are publishing data.";
+        m_errorHandler << "Depth image not received yet. Please ensure the ROS2 topics are publishing data.";
         return 0;
     }
     return m_depthImage.width();
