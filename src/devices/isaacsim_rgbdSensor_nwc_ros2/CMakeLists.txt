@@ -37,6 +37,11 @@ target_link_libraries(${plugin_name}_lib
   message_filters::message_filters
 )
 
+target_include_directories(${plugin_name}_lib
+  PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+
 target_compile_features(${plugin_name}_lib PUBLIC cxx_std_17)
 
 target_link_libraries(${plugin_name}

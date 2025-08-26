@@ -4,7 +4,7 @@
 set(targetname isaacsim_rgbdSensor_nwc_ros2_test)
 add_executable(${targetname} isaacsim_rgbdSensor_nwc_ros2_test.cpp)
 
-target_link_libraries(${targetname} PRIVATE Catch2::Catch2WithMain IsaacSimRGBDSensorNWCROS2_lib)
+target_link_libraries(${targetname} PRIVATE Catch2::Catch2WithMain IsaacSimRGBDSensorNWCROS2_lib YARP::YARP_init)
 target_compile_definitions(${targetname} PRIVATE CATCH_CONFIG_FAST_COMPILE CATCH_CONFIG_DISABLE_MATCHERS)
 
 add_test(NAME ${targetname} COMMAND ${targetname})

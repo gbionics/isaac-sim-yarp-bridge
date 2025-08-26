@@ -7,6 +7,11 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
+#include <IsaacSimRGBDSensorNWCROS2.h>
+#include <yarp/sig/Image.h>
+#include <yarp/os/Property.h>
+#include <yarp/os/Network.h>
+
 #include <chrono>
 #include <vector>
 #include <string>
@@ -17,20 +22,6 @@ using namespace std::chrono_literals;
 class TestNode : public rclcpp::Node {
 public:
     TestNode() : Node("test_node") {
-        rgb_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/camera/rgb/image_raw", 10,
-            [this](sensor_msgs::msg::Image::SharedPtr msg) {
-            rgb_received_ = msg;
-        }
-        );
-
-        depth_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/camera/depth/image_raw", 10,
-            [this](sensor_msgs::msg::Image::SharedPtr msg) {
-            depth_received_ = msg;
-        }
-        );
-
         rgb_pub_ = this->create_publisher<sensor_msgs::msg::Image>("/camera/rgb/image_raw", 10);
         depth_pub_ = this->create_publisher<sensor_msgs::msg::Image>("/camera/depth/image_raw", 10);
     }
@@ -62,47 +53,71 @@ public:
         depth_pub_->publish(depth_msg);
     }
 
-    sensor_msgs::msg::Image::SharedPtr rgb_received_;
-    sensor_msgs::msg::Image::SharedPtr depth_received_;
-
 private:
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr rgb_sub_;
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr depth_sub_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr rgb_pub_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depth_pub_;
 };
 
 TEST_CASE("RGB and Depth image reception", "[ros2]") {
     rclcpp::init(0, nullptr);
+    yarp::os::Network::init();
 
     auto node = std::make_shared<TestNode>();
     rclcpp::executors::SingleThreadedExecutor executor;
     executor.add_node(node);
 
+    auto device = yarp::dev::IsaacSimRGBDSensorNWCROS2();
+
+    yarp::os::Property config;
+    config.put("node_name", "test_isaacsim_rgbd_sensor");
+    config.put("rgb_topic_name", "/camera/rgb/image_raw");
+    config.put("depth_topic_name", "/camera/depth/image_raw");
+
+    REQUIRE(device.open(config));
+
     // Publish dummy messages
     node->publish_dummy_images();
 
     auto start = std::chrono::steady_clock::now();
-    bool got_both = false;
+    bool received = false;
+    yarp::sig::FlexImage rgb_image;
+    yarp::sig::ImageOf<yarp::sig::PixelFloat> depth_image;
 
     while (std::chrono::steady_clock::now() - start < 2s) {
         executor.spin_some();
-        if (node->rgb_received_ && node->depth_received_) {
-            got_both = true;
+        if (device.getSensorStatus() == yarp::dev::IRGBDSensor::RGBD_SENSOR_OK_IN_USE
+            && device.getImages(rgb_image, depth_image)) {
+            received = true;
             break;
         }
         std::this_thread::sleep_for(50ms);
     }
 
-    REQUIRE(got_both);
-    REQUIRE(node->rgb_received_->encoding == "rgb8");
-    REQUIRE(node->rgb_received_->data.size() == 12); // 2x2 RGB
+    REQUIRE(received);
+    REQUIRE(rgb_image.getPixelCode() == VOCAB_PIXEL_RGB);
+    REQUIRE(rgb_image.height() == 2);
+    REQUIRE(rgb_image.width() == 2);
+    REQUIRE(rgb_image.getRawImage()[0] == 255);
+    REQUIRE(rgb_image.getRawImage()[1] == 0);
+    REQUIRE(rgb_image.getRawImage()[2] == 0);
+    REQUIRE(rgb_image.getRawImage()[3] == 0);
+    REQUIRE(rgb_image.getRawImage()[4] == 255);
+    REQUIRE(rgb_image.getRawImage()[5] == 0);
+    REQUIRE(rgb_image.getRawImage()[6] == 0);
+    REQUIRE(rgb_image.getRawImage()[7] == 0);
+    REQUIRE(rgb_image.getRawImage()[8] == 255);
+    REQUIRE(rgb_image.getRawImage()[9] == 255);
+    REQUIRE(rgb_image.getRawImage()[10] == 255);
+    REQUIRE(rgb_image.getRawImage()[11] == 255);
 
-    REQUIRE(node->depth_received_->encoding == "32FC1");
-    REQUIRE(node->depth_received_->data.size() == 16); // 2x2 float
+
+    REQUIRE(depth_image.height() == 2);
+    REQUIRE(depth_image.width() == 2);
+
     float received_depth;
-    std::memcpy(&received_depth, node->depth_received_->data.data(), sizeof(float));
+    std::memcpy(&received_depth, depth_image.getRawImage(), sizeof(float));
     REQUIRE_THAT(received_depth,
         Catch::Matchers::WithinULP(1.23f, 0));
+    REQUIRE(device.close());
     rclcpp::shutdown();
 }
