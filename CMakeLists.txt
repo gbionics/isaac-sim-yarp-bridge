@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Fondazione Istituto Italiano di Tecnologia (IIT)
 # SPDX-License-Identifier: BSD-2-Clause
 
-cmake_minimum_required(VERSION 3.8...3.30)
+cmake_minimum_required(VERSION 3.20...3.30)
 project(
     isaac-sim-yarp-bridge
     VERSION 0.0.1
@@ -64,11 +64,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# find python before python3
 # Workaround for https://github.com/ami-iit/isaac-sim-yarp-bridge/pull/1#issuecomment-3033075842
 # and https://github.com/conda-forge/python-feedstock/issues/349, https://github.com/python/cpython/issues/99185
-find_package(Python REQUIRED)
-set(Python3_EXECUTABLE ${Python_EXECUTABLE})
+set(Python3_FIND_UNVERSIONED_NAMES FIRST)
 
 # ROS2
 find_package(ament_cmake REQUIRED)
@@ -76,15 +74,11 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(message_filters REQUIRED)
 
 # YARP
 find_package(YCM REQUIRED)
 find_package(YARP REQUIRED)
-
-option(BUILD_TESTING "Create tests using CMake" OFF)
-if(BUILD_TESTING)
-    enable_testing()
-endif()
 
 set(YARP_FORCE_DYNAMIC_PLUGINS TRUE CACHE INTERNAL "isaac-sim-yarp-bridge is always built with dynamic plugins")
 set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "Build libraries as shared as opposed to static")
@@ -100,3 +94,10 @@ include(AddUninstallTarget)
 yarp_configure_plugins_installation(isaac-sim-yarp-bridge)
 
 add_subdirectory(src)
+
+option(BUILD_TESTING "Create tests using CMake" OFF)
+if(BUILD_TESTING)
+    find_package(Catch2 3.0.1 REQUIRED)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
