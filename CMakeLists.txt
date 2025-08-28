@@ -71,10 +71,8 @@ set(Python3_FIND_UNVERSIONED_NAMES FIRST)
 # ROS2
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(message_filters REQUIRED)
 
 # YARP
 find_package(YCM REQUIRED)

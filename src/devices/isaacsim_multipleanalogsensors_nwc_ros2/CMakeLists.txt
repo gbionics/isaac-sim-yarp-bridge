@@ -35,7 +35,6 @@ target_link_libraries(${plugin_name}_lib
   rclcpp::rclcpp
   geometry_msgs::geometry_msgs__rosidl_typesupport_cpp
   sensor_msgs::sensor_msgs__rosidl_typesupport_cpp
-  message_filters::message_filters
 )
 
 target_include_directories(${plugin_name}_lib
