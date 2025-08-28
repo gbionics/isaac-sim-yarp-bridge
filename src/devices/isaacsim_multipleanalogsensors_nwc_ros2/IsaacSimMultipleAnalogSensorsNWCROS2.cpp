@@ -718,6 +718,11 @@ void yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::IMUMeasure::convert_to_yar
     angular_velocity_deg_s[1] = imu->angular_velocity.y * rad2deg;
     angular_velocity_deg_s[2] = imu->angular_velocity.z * rad2deg;
 
+    // Linear acceleration is already in m/s^2
+    linear_acceleration_m_s2[0] = imu->linear_acceleration.x;
+    linear_acceleration_m_s2[1] = imu->linear_acceleration.y;
+    linear_acceleration_m_s2[2] = imu->linear_acceleration.z;
+
     timestamp = imu->header.stamp.sec + imu->header.stamp.nanosec * 1e-9;
     frame = imu->header.frame_id;
 }
