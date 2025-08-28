@@ -68,17 +68,17 @@ public:
 
     /* IThreeAxisAngularAccelerometers methods */
     size_t getNrOfThreeAxisAngularAccelerometers() const override;
-    yarp::dev::MAS_status getThreeAxisAngularAccelerometerStatus(size_t sens_index) const override;
-    bool getThreeAxisAngularAccelerometerName(size_t sens_index, std::string& name) const override;
-    bool getThreeAxisAngularAccelerometerFrameName(size_t sens_index, std::string& frameName) const override;
-    bool getThreeAxisAngularAccelerometerMeasure(size_t sens_index, yarp::sig::Vector& out, double& timestamp) const override;
+    yarp::dev::MAS_status getThreeAxisAngularAccelerometerStatus(size_t /*sens_index*/) const override;
+    bool getThreeAxisAngularAccelerometerName(size_t /*sens_index*/, std::string& /*name*/) const override;
+    bool getThreeAxisAngularAccelerometerFrameName(size_t /*sens_index*/, std::string& /*frameName*/) const override;
+    bool getThreeAxisAngularAccelerometerMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const override;
 
     /* IThreeAxisMagnetometers methods */
     size_t getNrOfThreeAxisMagnetometers() const override;
-    yarp::dev::MAS_status getThreeAxisMagnetometerStatus(size_t sens_index) const override;
-    bool getThreeAxisMagnetometerName(size_t sens_index, std::string& name) const override;
-    bool getThreeAxisMagnetometerFrameName(size_t sens_index, std::string& frameName) const override;
-    bool getThreeAxisMagnetometerMeasure(size_t sens_index, yarp::sig::Vector& out, double& timestamp) const override;
+    yarp::dev::MAS_status getThreeAxisMagnetometerStatus(size_t /*sens_index*/) const override;
+    bool getThreeAxisMagnetometerName(size_t /*sens_index*/, std::string& /*name*/) const override;
+    bool getThreeAxisMagnetometerFrameName(size_t /*sens_index*/, std::string& /*frameName*/) const override;
+    bool getThreeAxisMagnetometerMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const override;
 
     /* IOrientationSensors methods */
     size_t getNrOfOrientationSensors() const override;
@@ -89,11 +89,11 @@ public:
 
     /* ITemperatureSensors methods */
     size_t getNrOfTemperatureSensors() const override;
-    yarp::dev::MAS_status getTemperatureSensorStatus(size_t sens_index) const override;
-    bool getTemperatureSensorName(size_t sens_index, std::string& name) const override;
-    bool getTemperatureSensorFrameName(size_t sens_index, std::string& frameName) const override;
-    bool getTemperatureSensorMeasure(size_t sens_index, double& out, double& timestamp) const override;
-    bool getTemperatureSensorMeasure(size_t sens_index, yarp::sig::Vector& out, double& timestamp) const override;
+    yarp::dev::MAS_status getTemperatureSensorStatus(size_t /*sens_index*/) const override;
+    bool getTemperatureSensorName(size_t /*sens_index*/, std::string& /*name*/) const override;
+    bool getTemperatureSensorFrameName(size_t /*sens_index*/, std::string& /*frameName*/) const override;
+    bool getTemperatureSensorMeasure(size_t /*sens_index*/, double& out, double& /*timestamp*/) const override;
+    bool getTemperatureSensorMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const override;
 
     /* ISixAxisForceTorqueSensors */
     size_t getNrOfSixAxisForceTorqueSensors() const override;
@@ -104,60 +104,68 @@ public:
 
     /* IContactLoadCellArrays */
     size_t getNrOfContactLoadCellArrays() const override;
-    yarp::dev::MAS_status getContactLoadCellArrayStatus(size_t sens_index) const override;
-    bool getContactLoadCellArrayName(size_t sens_index, std::string& name) const override;
-    bool getContactLoadCellArrayMeasure(size_t sens_index, yarp::sig::Vector& out, double& timestamp) const override;
-    size_t getContactLoadCellArraySize(size_t sens_index) const override;
+    yarp::dev::MAS_status getContactLoadCellArrayStatus(size_t /*sens_index*/) const override;
+    bool getContactLoadCellArrayName(size_t /*sens_index*/, std::string& /*name*/) const override;
+    bool getContactLoadCellArrayMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const override;
+    size_t getContactLoadCellArraySize(size_t /*sens_index*/) const override;
 
     /* IEncoderArrays */
     size_t getNrOfEncoderArrays() const override;
-    yarp::dev::MAS_status getEncoderArrayStatus(size_t sens_index) const override;
-    bool getEncoderArrayName(size_t sens_index, std::string& name) const override;
-    bool getEncoderArrayMeasure(size_t sens_index, yarp::sig::Vector& out, double& timestamp) const override;
-    size_t getEncoderArraySize(size_t sens_index) const override;
+    yarp::dev::MAS_status getEncoderArrayStatus(size_t /*sens_index*/) const override;
+    bool getEncoderArrayName(size_t /*sens_index*/, std::string& /*name*/) const override;
+    bool getEncoderArrayMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const override;
+    size_t getEncoderArraySize(size_t /*sens_index*/) const override;
 
     /* ISkinPatches */
     size_t getNrOfSkinPatches() const override;
-    yarp::dev::MAS_status getSkinPatchStatus(size_t sens_index) const override;
-    bool getSkinPatchName(size_t sens_index, std::string& name) const override;
-    bool getSkinPatchMeasure(size_t sens_index, yarp::sig::Vector& out, double& timestamp) const override;
-    size_t getSkinPatchSize(size_t sens_index) const override;
+    yarp::dev::MAS_status getSkinPatchStatus(size_t /*sens_index*/) const override;
+    bool getSkinPatchName(size_t /*sens_index*/, std::string& /*name*/) const override;
+    bool getSkinPatchMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const override;
+    size_t getSkinPatchSize(size_t /*sens_index*/) const override;
 
     /* IPositionSensors methods */
     size_t getNrOfPositionSensors() const override;
-    yarp::dev::MAS_status getPositionSensorStatus(size_t sens_index) const override;
-    bool getPositionSensorName(size_t sens_index, std::string& name) const override;
-    bool getPositionSensorFrameName(size_t sens_index, std::string& frameName) const override;
-    bool getPositionSensorMeasure(size_t sens_index, yarp::sig::Vector& xyz, double& timestamp) const override;
+    yarp::dev::MAS_status getPositionSensorStatus(size_t /*sens_index*/) const override;
+    bool getPositionSensorName(size_t /*sens_index*/, std::string& /*name*/) const override;
+    bool getPositionSensorFrameName(size_t /*sens_index*/, std::string& /*frameName*/) const override;
+    bool getPositionSensorMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*xyz*/, double& /*timestamp*/) const override;
 
     /* ILinearVelocitySensors methods */
     size_t getNrOfLinearVelocitySensors() const override;
-    yarp::dev::MAS_status getLinearVelocitySensorStatus(size_t sens_index) const override;
-    bool getLinearVelocitySensorName(size_t sens_index, std::string& name) const override;
-    bool getLinearVelocitySensorFrameName(size_t sens_index, std::string& frameName) const override;
-    bool getLinearVelocitySensorMeasure(size_t sens_index, yarp::sig::Vector& xyz, double& timestamp) const override;
+    yarp::dev::MAS_status getLinearVelocitySensorStatus(size_t /*sens_index*/) const override;
+    bool getLinearVelocitySensorName(size_t /*sens_index*/, std::string& /*name*/) const override;
+    bool getLinearVelocitySensorFrameName(size_t /*sens_index*/, std::string& /*frameName*/) const override;
+    bool getLinearVelocitySensorMeasure(size_t /*sens_index*/, yarp::sig::Vector& xyz, double& /*timestamp*/) const override;
 
 private:
     struct IMUMeasure
     {
+        std::string name;
         std::string frame;
         yarp::sig::Vector rpy_deg;
         yarp::sig::Vector angular_velocity_deg_s;
         yarp::sig::Vector linear_acceleration_m_s2;
         double timestamp;
         std::atomic<bool> valid{ false };
-        std::mutex mutex;
+        mutable std::mutex mutex;
         void convert_to_yarp_vectors(const sensor_msgs::msg::Imu::ConstSharedPtr& imu);
+
+        IMUMeasure();
+        IMUMeasure(const IMUMeasure& other);
     };
 
     struct FTMeasure
     {
+        std::string name;
         std::string frame;
         yarp::sig::Vector force_torque;
         double timestamp;
         std::atomic<bool> valid{ false };
-        std::mutex mutex;
+        mutable std::mutex mutex;
         void convert_to_yarp_vectors(const geometry_msgs::msg::WrenchStamped::ConstSharedPtr& ft);
+
+        FTMeasure();
+        FTMeasure(const FTMeasure& other);
     };
 
     class MASSubscriber : public rclcpp::Node
@@ -178,7 +186,7 @@ private:
     std::thread m_executorThread;
     std::vector<IMUMeasure> m_imus;
     std::vector<FTMeasure> m_fts;
-    std::mutex m_mutex;
+    mutable std::mutex m_mutex;
 
 };
 #endif
