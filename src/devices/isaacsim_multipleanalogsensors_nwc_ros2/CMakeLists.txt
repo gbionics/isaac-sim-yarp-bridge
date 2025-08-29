@@ -1,13 +1,13 @@
 # SPDX-FileCopyrightText: Fondazione Istituto Italiano di Tecnologia (IIT)
 # SPDX-License-Identifier: BSD-2-Clause
 
-set(plugin_name IsaacSimRGBDSensorNWCROS2)
+set(plugin_name IsaacSimMultipleAnalogSensorsNWCROS2)
 
 yarp_prepare_plugin(${plugin_name}
   CATEGORY device
   TYPE yarp::dev::${plugin_name}
-  INCLUDE IsaacSimRGBDSensorNWCROS2.h
-  OPTION ENABLE_IsaacSimRGBDSensorNWCROS2
+  INCLUDE IsaacSimMultipleAnalogSensorsNWCROS2.h
+  OPTION ENABLE_IsaacSimMultipleAnalogSensorsNWCROS2
   DEFAULT ON
 )
 
@@ -21,10 +21,10 @@ yarp_add_plugin(${plugin_name})
 generateDeviceParamsParser(${plugin_name} ${plugin_name})
 
 add_library(${plugin_name}_lib
-    IsaacSimRGBDSensorNWCROS2.cpp
-    IsaacSimRGBDSensorNWCROS2.h
-    IsaacSimRGBDSensorNWCROS2_ParamsParser.h
-    IsaacSimRGBDSensorNWCROS2_ParamsParser.cpp
+    IsaacSimMultipleAnalogSensorsNWCROS2.cpp
+    IsaacSimMultipleAnalogSensorsNWCROS2.h
+    IsaacSimMultipleAnalogSensorsNWCROS2_ParamsParser.h
+    IsaacSimMultipleAnalogSensorsNWCROS2_ParamsParser.cpp
 )
 
 target_link_libraries(${plugin_name}_lib
@@ -33,6 +33,7 @@ target_link_libraries(${plugin_name}_lib
   YARP::YARP_sig
   YARP::YARP_dev
   rclcpp::rclcpp
+  geometry_msgs::geometry_msgs__rosidl_typesupport_cpp
   sensor_msgs::sensor_msgs__rosidl_typesupport_cpp
 )
 

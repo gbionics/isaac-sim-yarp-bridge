@@ -28,8 +28,9 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::open(yarp::os::Searchable& config)
         rclcpp::init(0, nullptr);
     }
     m_subscriber = std::make_shared<RGBDSubscriber>(m_paramsParser.m_node_name, m_paramsParser.m_rgb_topic_name, m_paramsParser.m_depth_topic_name, this);
-    m_executor.add_node(m_subscriber);
-    m_executorThread = std::thread([this]() { m_executor.spin(); });
+    m_executor = std::make_unique<rclcpp::executors::SingleThreadedExecutor>();
+    m_executor->add_node(m_subscriber);
+    m_executorThread = std::thread([this]() { m_executor->spin(); });
 
     return true;
 }
@@ -43,7 +44,7 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::close()
     m_depthInfoReceivedOnce = false;
     if (m_subscriber)
     {
-        m_executor.cancel();
+        m_executor->cancel();
         m_executorThread.join();
         m_subscriber.reset();
     }

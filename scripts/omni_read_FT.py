@@ -10,14 +10,20 @@
 #                    Use db.log_error, db.log_warning to report problems in the compute function.
 #    og: The omni.graph.core module
 
-# Expects three inputs:
-# - FTJoint [target] The fixed joint corresponding to the FT sensor, e.g. /World/ergoCubSN002/joints/l_foot_front_ft_sensor
+# Expects four inputs:
 # - FTFrame [target] The link with respect to which express the measure, e.g. /World/ergoCubSN002/l_foot_front_ft
+# - FTJoint [target] The fixed joint corresponding to the FT sensor, e.g. /World/ergoCubSN002/joints/l_foot_front_ft_sensor
 # - flipMeasure [bool] A boolean to flip the measurement. By default (false), the measured wrench is the one exerted by the FT.
+# - timestamp [double] The simulation time to convert to a ROS compatible timestamp
 
-# Expects two outputs:
+# Expects four outputs:
 # - force [double[3]] The measured force
 # - torque [double[3]] The measured torque
+# - value_sec [int] The seconds for the value timestamp
+# - value_nanosec [uint] The additional number of nanoseconds for the value timestamp
+
+
+import math
 
 import isaacsim.core.utils.rotations as rotations_utils
 import isaacsim.core.utils.stage as stage_utils
@@ -192,5 +198,15 @@ def compute(db: og.Database) -> bool:
     if hasattr(db.inputs, "flipMeasure") and db.inputs.flipMeasure:
         db.outputs.force *= -1
         db.outputs.torque *= -1
+
+    if (
+        hasattr(db.inputs, "timestamp")
+        and hasattr(db.outputs, "value_sec")
+        and hasattr(db.outputs, "value_nanosec")
+    ):
+        sec = math.floor(db.inputs.timestamp)
+        nanosec = (db.inputs.timestamp - sec) * 1e9
+        db.outputs.value_sec = int(sec)
+        db.outputs.value_nanosec = int(nanosec)
 
     return True

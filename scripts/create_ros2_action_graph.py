@@ -65,6 +65,9 @@ def add_basic_nodes(graph_keys):
             ("sim_time", "isaacsim.core.nodes.IsaacReadSimulationTime"),
             ("ros2_context", "isaacsim.ros2.bridge.ROS2Context"),
         ],
+        graph_keys.SET_VALUES: [
+            ("sim_time.inputs:resetOnStop", True),
+        ],
     }
 
 
@@ -197,6 +200,10 @@ def create_imu_subcompound(graph_keys, settings, name, target):
             (
                 publish_node_name + ".inputs:topicName",
                 settings.topic_prefix + "/IMU/" + name,
+            ),
+            (
+                publish_node_name + ".inputs:frameId",
+                name,
             ),
         ],
         graph_keys.PROMOTE_ATTRIBUTES: [
@@ -433,14 +440,20 @@ def create_ft_subcompound(graph_keys, name, joint, frame, flip, topic_prefix):
     topic_name = topic_prefix + "/" + name
 
     script_code = """
-# Expects three inputs:
-# - FTJoint [target] The fixed joint corresponding to the FT sensor, e.g. /World/ergoCubSN002/joints/l_foot_front_ft_sensor
+# Expects four inputs:
 # - FTFrame [target] The link with respect to which express the measure, e.g. /World/ergoCubSN002/l_foot_front_ft
+# - FTJoint [target] The fixed joint corresponding to the FT sensor, e.g. /World/ergoCubSN002/joints/l_foot_front_ft_sensor
 # - flipMeasure [bool] A boolean to flip the measurement. By default (false), the measured wrench is the one exerted by the FT.
+# - timestamp [double] The simulation time to convert to a ROS compatible timestamp
 
-# Expects two outputs:
+# Expects four outputs:
 # - force [double[3]] The measured force
 # - torque [double[3]] The measured torque
+# - value_sec [int] The seconds for the value timestamp
+# - value_nanosec [uint] The additional number of nanoseconds for the value timestamp
+
+
+import math
 
 import isaacsim.core.utils.rotations as rotations_utils
 import isaacsim.core.utils.stage as stage_utils
@@ -616,6 +629,16 @@ def compute(db: og.Database) -> bool:
         db.outputs.force *= -1
         db.outputs.torque *= -1
 
+    if (
+        hasattr(db.inputs, "timestamp")
+        and hasattr(db.outputs, "value_sec")
+        and hasattr(db.outputs, "value_nanosec")
+    ):
+        sec = math.floor(db.inputs.timestamp)
+        nanosec = (db.inputs.timestamp - sec) * 1e9
+        db.outputs.value_sec = int(sec)
+        db.outputs.value_nanosec = int(nanosec)
+
     return True
 
     """
@@ -631,23 +654,30 @@ def compute(db: og.Database) -> bool:
             (script_node_name + ".inputs:FTJoint", "target"),
             (script_node_name + ".inputs:FTFrame", "target"),
             (script_node_name + ".inputs:flipMeasure", "bool"),
+            (script_node_name + ".inputs:timestamp", "double"),
             (script_node_name + ".outputs:force", "double[3]"),
             (script_node_name + ".outputs:torque", "double[3]"),
+            (script_node_name + ".outputs:value_sec", "int"),
+            (script_node_name + ".outputs:value_nanosec", "uint"),
             # The following would be created automatically after creation
             # but in order to connect to them, we create them manually
-            (publish_node_name + ".inputs:force:x", "double"),
-            (publish_node_name + ".inputs:force:y", "double"),
-            (publish_node_name + ".inputs:force:z", "double"),
-            (publish_node_name + ".inputs:torque:x", "double"),
-            (publish_node_name + ".inputs:torque:y", "double"),
-            (publish_node_name + ".inputs:torque:z", "double"),
+            (publish_node_name + ".inputs:header:frame_id", "token"),
+            (publish_node_name + ".inputs:header:stamp:nanosec", "uint"),
+            (publish_node_name + ".inputs:header:stamp:sec", "int"),
+            (publish_node_name + ".inputs:wrench:force:x", "double"),
+            (publish_node_name + ".inputs:wrench:force:y", "double"),
+            (publish_node_name + ".inputs:wrench:force:z", "double"),
+            (publish_node_name + ".inputs:wrench:torque:x", "double"),
+            (publish_node_name + ".inputs:wrench:torque:y", "double"),
+            (publish_node_name + ".inputs:wrench:torque:z", "double"),
         ],
         graph_keys.SET_VALUES: [
             (script_node_name + ".inputs:FTJoint", joint),
             (script_node_name + ".inputs:FTFrame", frame),
             (script_node_name + ".inputs:flipMeasure", flip),
             (script_node_name + ".inputs:script", script_code),
-            (publish_node_name + ".inputs:messageName", "Wrench"),
+            (publish_node_name + ".inputs:header:frame_id", name),
+            (publish_node_name + ".inputs:messageName", "WrenchStamped"),
             (publish_node_name + ".inputs:messagePackage", "geometry_msgs"),
             (
                 publish_node_name + ".inputs:topicName",
@@ -655,6 +685,7 @@ def compute(db: og.Database) -> bool:
             ),
         ],
         graph_keys.PROMOTE_ATTRIBUTES: [
+            (script_node_name + ".inputs:timestamp", "inputs:timestamp"),
             (script_node_name + ".inputs:execIn", "inputs:execIn"),
             (publish_node_name + ".inputs:context", "inputs:context"),
         ],
@@ -669,15 +700,15 @@ def compute(db: og.Database) -> bool:
             ),
             (
                 break_force_node_name + ".outputs:x",
-                publish_node_name + ".inputs:force:x",
+                publish_node_name + ".inputs:wrench:force:x",
             ),
             (
                 break_force_node_name + ".outputs:y",
-                publish_node_name + ".inputs:force:y",
+                publish_node_name + ".inputs:wrench:force:y",
             ),
             (
                 break_force_node_name + ".outputs:z",
-                publish_node_name + ".inputs:force:z",
+                publish_node_name + ".inputs:wrench:force:z",
             ),
             (
                 script_node_name + ".outputs:torque",
@@ -685,15 +716,23 @@ def compute(db: og.Database) -> bool:
             ),
             (
                 break_torque_node_name + ".outputs:x",
-                publish_node_name + ".inputs:torque:x",
+                publish_node_name + ".inputs:wrench:torque:x",
             ),
             (
                 break_torque_node_name + ".outputs:y",
-                publish_node_name + ".inputs:torque:y",
+                publish_node_name + ".inputs:wrench:torque:y",
             ),
             (
                 break_torque_node_name + ".outputs:z",
-                publish_node_name + ".inputs:torque:z",
+                publish_node_name + ".inputs:wrench:torque:z",
+            ),
+            (
+                script_node_name + ".outputs:value_sec",
+                publish_node_name + ".inputs:header:stamp:sec",
+            ),
+            (
+                script_node_name + ".outputs:value_nanosec",
+                publish_node_name + ".inputs:header:stamp:nanosec",
             ),
         ],
     }
@@ -730,6 +769,12 @@ def create_ft_compounds(graph_keys, settings):
             # Add the connections to the inner compound inputs for the internal inputs
             # that have not been promoted
             connections.append(
+                (
+                    compound_name + ".inputs:timestamp",
+                    subcompound_name + ".inputs:timestamp",
+                )
+            )
+            connections.append(
                 (compound_name + ".inputs:execIn", subcompound_name + ".inputs:execIn")
             )
             connections.append(
@@ -739,6 +784,9 @@ def create_ft_compounds(graph_keys, settings):
                 )
             )
 
+    connections.append(
+        ("sim_time.outputs:simulationTime", compound_name + ".inputs:timestamp")
+    )
     connections.append(("tick.outputs:tick", compound_name + ".inputs:execIn"))
     connections.append(
         ("ros2_context.outputs:context", compound_name + ".inputs:context")
@@ -751,6 +799,7 @@ def create_ft_compounds(graph_keys, settings):
                 {
                     graph_keys.CREATE_NODES: ft_compounds,
                     graph_keys.PROMOTE_ATTRIBUTES: [
+                        (first_compound + ".inputs:timestamp", "inputs:timestamp"),
                         (first_compound + ".inputs:execIn", "inputs:execIn"),
                         (first_compound + ".inputs:context", "inputs:context"),
                     ],
@@ -783,6 +832,7 @@ s = Settings(
     articulation_root=robot_path + "/root_link",
     topic_prefix="/ergocub",
     imus=[
+        # The name of the imu is also the frameId
         Imu(name="waist_imu_0", target=robot_path + "/torso_1/waist_imu_0_sensor"),
         Imu(name="head_imu_0", target=robot_path + "/head/head_imu_0_sensor"),
     ],
@@ -800,6 +850,7 @@ s = Settings(
             target=realsense_prefix + "/Camera_Pseudo_Depth",
         ),
     ],
+    # The name of the FT is also the frameId
     FTs=[
         FT(
             name="l_leg_ft",

@@ -5,7 +5,6 @@
 #define ISAACSIM_RGBD_SENSOR_NWC_ROS2_H
 
 #include <yarp/dev/DeviceDriver.h>
-#include <yarp/os/PeriodicThread.h>
 #include <yarp/dev/IRGBDSensor.h>
 #include <yarp/sig/IntrinsicParams.h>
 
@@ -121,7 +120,7 @@ private:
 
     IsaacSimRGBDSensorNWCROS2_ParamsParser m_paramsParser;
     std::shared_ptr<RGBDSubscriber> m_subscriber;
-    rclcpp::executors::SingleThreadedExecutor m_executor;
+    std::unique_ptr<rclcpp::executors::SingleThreadedExecutor> m_executor;
     std::thread m_executorThread;
     std::atomic<bool> m_rgbReceivedOnce{ false };
     std::atomic<bool> m_depthReceivedOnce{ false };
