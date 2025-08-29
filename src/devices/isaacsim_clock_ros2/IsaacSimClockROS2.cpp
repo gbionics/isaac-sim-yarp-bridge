@@ -68,11 +68,6 @@ bool yarp::dev::IsaacSimClockROS2::close()
         m_subscriber.reset();
     }
     m_clockPort.close();
-    if (rclcpp::ok())
-    {
-        rclcpp::shutdown();
-    }
-
 
     return true;
 }

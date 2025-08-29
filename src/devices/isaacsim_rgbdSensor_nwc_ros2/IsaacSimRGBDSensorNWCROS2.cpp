@@ -48,10 +48,6 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::close()
         m_executorThread.join();
         m_subscriber.reset();
     }
-    if (rclcpp::ok())
-    {
-        rclcpp::shutdown();
-    }
     return true;
 }
 
