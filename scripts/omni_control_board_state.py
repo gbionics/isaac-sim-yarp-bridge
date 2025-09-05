@@ -23,6 +23,7 @@ import os
 import omni.graph.core as og
 import rcl_interfaces
 import rclpy
+from rcl_interfaces.srv import GetParameters as GetParametersSrv
 from rcl_interfaces.srv import SetParameters as SetParametersSrv
 from rclpy.context import Context as ROS2Context
 from rclpy.executors import SingleThreadedExecutor
@@ -33,6 +34,7 @@ from rclpy.node import Node as ROS2Node
 class ControlBoardDataSettings:
     node_name: str
     node_set_parameters_service_name: str
+    node_get_parameters_service_name: str
     node_timeout: float
 
 
@@ -40,6 +42,7 @@ class ControlBoardDataSettings:
 settings = ControlBoardDataSettings(
     node_name="isaac_sim_control_board_state",
     node_set_parameters_service_name="ergocub/controlboard/set_parameters",
+    node_get_parameters_service_name="ergocub/controlboard/get_parameters",
     node_timeout=0.1,
 )
 
@@ -58,13 +61,17 @@ class ControlBoardNode(ROS2Node):
     def __init__(
         self,
         node_name: str,
-        service_name: str,
+        set_service_name: str,
+        get_service_name: str,
         context,
         state,
     ):
         super().__init__(node_name, context=context)
-        self.srv = self.create_service(
-            SetParametersSrv, service_name, self.callback_set_parameters
+        self.set_srv = self.create_service(
+            SetParametersSrv, set_service_name, self.callback_set_parameters
+        )
+        self.get_srv = self.create_service(
+            GetParametersSrv, get_service_name, self.callback_get_parameters
         )
         self.state = state
 
@@ -82,9 +89,13 @@ class ControlBoardNode(ROS2Node):
         response.results = results
         return response
 
+    def callback_get_parameters(self, request, response):
+        # TODO implement
+        return response
+
 
 class ControlBoardData:
-    def __init__(self, settings, domain_id: int):
+    def __init__(self):
         self.state = None
         self.context = None
         self.node = None
@@ -124,7 +135,7 @@ def set_values_to_bundle(db):
     # For some reason, in script nodes, a bundle output
     # is not a classical output and needs to be retrieved
     # differently, passing via the node API.
-    # Moreover, the name is edited with a outputs_ instead of outputs:
+    # Moreover, the name is edited with an outputs_ instead of outputs:
 
     bundle_attr = db.node.get_attribute("outputs_outputs:bundle")
     if not bundle_attr.is_valid():
@@ -182,7 +193,8 @@ def setup(db: og.Database):
     db.per_instance_state.context.init(domain_id=domain_id)
     db.per_instance_state.node = ControlBoardNode(
         node_name=settings.node_name,
-        service_name=settings.node_set_parameters_service_name,
+        set_service_name=settings.node_set_parameters_service_name,
+        get_service_name=settings.node_get_parameters_service_name,
         context=db.per_instance_state.context,
         state=db.per_instance_state.state,
     )
