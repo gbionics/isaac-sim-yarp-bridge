@@ -18,8 +18,8 @@ import dataclasses
 import os
 
 import omni.graph.core as og
-import rcl_interfaces
 import rclpy
+from rcl_interfaces.msg import SetParametersResult
 from rcl_interfaces.srv import GetParameters as GetParametersSrv
 from rcl_interfaces.srv import SetParameters as SetParametersSrv
 from rclpy.context import Context as ROS2Context
@@ -33,6 +33,12 @@ class ControlBoardSettings:
     node_set_parameters_service_name: str
     node_get_parameters_service_name: str
     node_timeout: float
+    joint_names: list[str]
+    position_p_gains: list[float]
+    position_i_gains: list[float]
+    position_d_gains: list[float]
+    position_max_integral: list[float]
+    position_max_output: list[float]
 
 
 # TODO: change this
@@ -41,17 +47,85 @@ settings = ControlBoardSettings(
     node_set_parameters_service_name="ergocub/controlboard/set_parameters",
     node_get_parameters_service_name="ergocub/controlboard/get_parameters",
     node_timeout=0.1,
+    joint_names=[
+        "camera_tilt",
+        "neck_pitch",
+        "neck_roll",
+        "neck_yaw",
+        "torso_pitch",
+        "torso_roll",
+        "torso_yaw",
+        "l_shoulder_pitch",
+        "l_shoulder_roll",
+        "l_shoulder_yaw",
+        "l_elbow",
+        "l_thumb_add",
+        "l_thumb_prox",
+        "l_thumb_dist",
+        "l_index_add",
+        "l_index_prox",
+        "l_index_dist",
+        "l_middle_prox",
+        "l_middle_dist",
+        "l_ring_prox",
+        "l_ring_dist",
+        "l_pinkie_prox",
+        "l_pinkie_dist",
+        "r_shoulder_pitch",
+        "r_shoulder_roll",
+        "r_shoulder_yaw",
+        "r_elbow",
+        "r_thumb_add",
+        "r_thumb_prox",
+        "r_thumb_dist",
+        "r_index_add",
+        "r_index_prox",
+        "r_index_dist",
+        "r_middle_prox",
+        "r_middle_dist",
+        "r_ring_prox",
+        "r_ring_dist",
+        "r_pinkie_prox",
+        "r_pinkie_dist",
+        "l_hip_pitch",
+        "l_hip_roll",
+        "l_hip_yaw",
+        "l_knee",
+        "l_ankle_pitch",
+        "l_ankle_roll",
+        "r_hip_pitch",
+        "r_hip_roll",
+        "r_hip_yaw",
+        "r_knee",
+        "r_ankle_pitch",
+        "r_ankle_roll",
+    ],
+    position_p_gains=[100.0] * 51,
+    position_i_gains=[1.0] * 51,
+    position_d_gains=[20.0] * 51,
+    position_max_integral=[10.0] * 51,
+    position_max_output=[100.0] * 51,
 )
 
 
 class ControlBoardState:
+    joint_names: list[str]
     control_modes: list[int]
-    position_pid_gains: list[float]
+    position_p_gains: list[float]
+    position_i_gains: list[float]
+    position_d_gains: list[float]
+    position_max_integral: list[float]
+    position_max_output: list[float]
 
-    def __init__(self):
-        # TODO specify a sort of initialization
-        self.control_modes = [1] * 23
-        self.position_pid_gains = [1.0, 2.0, 3.0]
+    def __init__(self, s: ControlBoardSettings):
+        self.joint_names = s.joint_names
+        n_joints = len(self.joint_names)
+        self.control_modes = [1] * n_joints
+        self.position_p_gains = s.position_p_gains
+        self.position_i_gains = s.position_i_gains
+        self.position_d_gains = s.position_d_gains
+        self.position_max_integral = s.position_max_integral
+        self.position_max_output = s.position_max_output
 
 
 class ControlBoardNode(ROS2Node):
@@ -72,16 +146,62 @@ class ControlBoardNode(ROS2Node):
         )
         self.state = state
 
+    def set_vector_parameter(self, name: str, value: list):
+        if hasattr(self.state, name):
+            if len(value) == len(getattr(self.state, name)):
+                setattr(self.state, name, value)
+                return True, "accepted"
+            else:
+                return False, f"Invalid length for parameter {name}"
+        else:
+            return False, f"Unknown parameter {name}"
+
+    def set_scalar_parameter(self, name: str, index, value):
+        if hasattr(self.state, name):
+            vec = getattr(self.state, name)
+            if 0 <= index < len(vec):
+                vec[index] = value
+                return True, "accepted"
+            else:
+                return False, (
+                    f"Index {index} out of range for "
+                    f"parameter {name} with size {len(vec)}."
+                )
+        else:
+            return False, f"Unknown parameter {name}"
+
+    @staticmethod
+    def extract_indexed_name(name: str):
+        if "[" in name and name.endswith("]"):
+            base_name = name[: name.index("[")]
+            try:
+                index = int(name[name.index("[") + 1 : -1])
+                return base_name, index
+            except ValueError:
+                pass
+        return name, None
+
     def callback_set_parameters(self, request, response):
-        # TODO edit the state
-        print(f"Received request: {request}")
         results = []
         for p in request.parameters:
+            name, index = self.extract_indexed_name(p.name)
             value = rclpy.parameter.parameter_value_to_python(p.value)
-            print(f"Name: {p.name} Value {value}")
-            r = rcl_interfaces.msg.SetParametersResult()
-            r.successful = True
-            r.reason = "accepted"
+            r = SetParametersResult()
+            if hasattr(self.state, name):
+                if index is not None:
+                    r.successful, r.reason = self.set_scalar_parameter(
+                        name, index, value
+                    )
+                else:
+                    if isinstance(value, list):
+                        r.successful, r.reason = self.set_vector_parameter(name, value)
+                    else:
+                        r.successful = False
+                        r.reason = f"Parameter {name} expects a list value"
+            else:
+                r.successful = False
+                r.reason = f"Unknown parameter {name}"
+
             results.append(r)
         response.results = results
         return response
@@ -128,10 +248,9 @@ def choose_domain_id(db) -> int:
     return int(domain_id_input)
 
 
-
 def setup(db: og.Database):
     domain_id = choose_domain_id(db=db)
-    db.per_instance_state.state = ControlBoardState()
+    db.per_instance_state.state = ControlBoardState(s=settings)
     db.per_instance_state.context = ROS2Context()
     db.per_instance_state.context.init(domain_id=domain_id)
     db.per_instance_state.node = ControlBoardNode(
