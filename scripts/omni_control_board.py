@@ -10,7 +10,8 @@
 #                    Use db.log_error, db.log_warning to report problems in the compute function.
 #    og: The omni.graph.core module
 
-# Expects two inputs:
+# Expects three inputs:
+# - deltaTime [float]: Time passed since last compute (in seconds)
 # - domain_id [int]: The ROS2 domain ID (optional)
 # - useDomainIDEnvVar [bool]: Define whether to get the domain ID from an env var or not (optional)
 
@@ -19,6 +20,7 @@ import os
 
 import omni.graph.core as og
 import rclpy
+from aiohttp.log import internal_logger
 from rcl_interfaces.msg import ParameterType, ParameterValue, SetParametersResult
 from rcl_interfaces.srv import GetParameters as GetParametersSrv
 from rcl_interfaces.srv import SetParameters as SetParametersSrv
@@ -272,9 +274,55 @@ class ControlBoardNode(ROS2Node):
         return response
 
 
+class ControlBoardPID:
+    kp: float
+    ki: float
+    kd: float
+    max_integral: float
+    max_output: float
+
+    def __init__(self, p=0.0, i=0.0, d=0.0, max_integral=0.0, max_output=0.0):
+        self.kp = p
+        self.ki = i
+        self.kd = d
+        self.max_integral = max_integral
+        self.max_output = max_output
+        self.integral_state = 0.0
+        self.previous_error = 0.0
+
+    def compute(self, error, delta_time):
+        # Proportional term
+        p_term = self.kp * error
+
+        # Integral term
+        self.integral_state += error * delta_time
+        self.integral_state = max(
+            min(self.integral_state, self.max_integral), -self.max_integral
+        )
+        i_term = self.ki * self.integral_state
+
+        # Derivative term
+        derivative = (
+            (error - self.previous_error) / delta_time if delta_time > 0 else 0.0
+        )
+        self.previous_error = error
+        d_term = self.kd * derivative
+
+        # Total output
+        output = p_term + i_term + d_term
+        output = max(min(output, self.max_output), -self.max_output)
+
+        return output
+
+    def reset(self):
+        self.integral_state = 0.0
+        self.previous_error = 0.0
+
+
 class ControlBoardData:
     def __init__(self):
         self.state = None
+        self.pids = None
         self.context = None
         self.node = None
         self.executor = None
@@ -312,6 +360,7 @@ def choose_domain_id(db) -> int:
 def setup(db: og.Database):
     domain_id = choose_domain_id(db=db)
     db.per_instance_state.state = ControlBoardState(s=settings)
+    db.per_instance_state.pids = {}
     db.per_instance_state.context = ROS2Context()
     db.per_instance_state.context.init(domain_id=domain_id)
     db.per_instance_state.node = ControlBoardNode(
@@ -349,10 +398,46 @@ def compute(db: og.Database):
     ):
         setup(db)
 
-    state = db.per_instance_state
+    script_state = db.per_instance_state
 
-    if rclpy.ok(context=state.context):
-        state.executor.spin_once(timeout_sec=settings.node_timeout)
+    if rclpy.ok(context=script_state.context):
+        script_state.executor.spin_once(timeout_sec=settings.node_timeout)
+
+    output_effort = []
+    for i in range(len(script_state.state.joint_names)):
+        if i not in script_state.pids:
+            script_state.pids[i] = {}
+
+        if script_state.state.control_modes[i] not in script_state.pids[i]:
+            if script_state.state.control_modes[i] == 1:  # position control
+                script_state.pids[i][script_state.state.control_modes[i]] = (
+                    ControlBoardPID(
+                        p=script_state.state.position_p_gains[i],
+                        i=script_state.state.position_i_gains[i],
+                        d=script_state.state.position_d_gains[i],
+                        max_integral=script_state.state.position_max_integral[i],
+                        max_output=script_state.state.position_max_output[i],
+                    )
+                )
+            else:
+                script_state.pids[i][script_state.state.control_modes[i]] = None
+                print(
+                    f"Unsupported control mode {script_state.state.control_modes[i]} "
+                    f"for joint {script_state.state.joint_names[i]}"
+                )
+
+        pid = script_state.pids[i][script_state.state.control_modes[i]]
+        if pid is not None:
+            if script_state.state.control_modes[i] == 1:
+                error = (
+                    db.inputs.joint_position_commands[i] - db.inputs.joint_positions[i]
+                )
+                command = pid.compute(error, db.inputs.deltaTime)
+                output_effort.append(command)
+            else:
+                output_effort.append(0.0)
+        else:
+            output_effort.append(0.0)
 
     return True
 
