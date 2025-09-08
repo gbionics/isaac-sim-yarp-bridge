@@ -19,7 +19,7 @@ import os
 
 import omni.graph.core as og
 import rclpy
-from rcl_interfaces.msg import SetParametersResult
+from rcl_interfaces.msg import ParameterType, ParameterValue, SetParametersResult
 from rcl_interfaces.srv import GetParameters as GetParametersSrv
 from rcl_interfaces.srv import SetParameters as SetParametersSrv
 from rclpy.context import Context as ROS2Context
@@ -149,6 +149,13 @@ class ControlBoardNode(ROS2Node):
     def set_vector_parameter(self, name: str, value: list):
         if hasattr(self.state, name):
             if len(value) == len(getattr(self.state, name)):
+                if len(getattr(self.state, name)) > 0 and not all(
+                    isinstance(v, type(getattr(self.state, name)[0])) for v in value
+                ):
+                    return False, (
+                        f"Invalid type for parameter {name}: "
+                        f"expected {type(getattr(self.state, name)[0])}"
+                    )
                 setattr(self.state, name, value)
                 return True, "accepted"
             else:
@@ -160,6 +167,11 @@ class ControlBoardNode(ROS2Node):
         if hasattr(self.state, name):
             vec = getattr(self.state, name)
             if 0 <= index < len(vec):
+                if not isinstance(vec[index], type(value)):
+                    return False, (
+                        f"Invalid type for parameter {name}[{index}]: "
+                        f"expected {type(vec[index])}, got {type(value)}"
+                    )
                 vec[index] = value
                 return True, "accepted"
             else:
@@ -169,6 +181,53 @@ class ControlBoardNode(ROS2Node):
                 )
         else:
             return False, f"Unknown parameter {name}"
+
+    def get_vector_parameter(self, name: str):
+        output = ParameterValue()
+        output.type = ParameterType.PARAMETER_NOT_SET
+
+        if hasattr(self.state, name) and len(getattr(self.state, name)) > 0:
+            vec = getattr(self.state, name)
+            if all(isinstance(v, int) for v in vec):
+                output.type = ParameterType.PARAMETER_INTEGER_ARRAY
+                output.integer_array_value = getattr(self.state, name)
+            elif all(isinstance(v, float) for v in vec):
+                output.type = ParameterType.PARAMETER_DOUBLE_ARRAY
+                output.double_array_value = getattr(self.state, name)
+            elif all(isinstance(v, str) for v in vec):
+                output.type = ParameterType.PARAMETER_STRING_ARRAY
+                output.string_array_value = getattr(self.state, name)
+            else:
+                output.type = ParameterType.PARAMETER_NOT_SET
+                print(
+                    f"Unsupported type for parameter {name}: {[type(v) for v in vec]}. "
+                    f"This should not have happened!"
+                )
+        return output
+
+    def get_scalar_parameter(self, name: str, index: int):
+        output = ParameterValue()
+        output.type = ParameterType.PARAMETER_NOT_SET
+        if hasattr(self.state, name):
+            vec = getattr(self.state, name)
+            if 0 <= index < len(vec):
+                v = vec[index]
+                if isinstance(v, int):
+                    output.type = ParameterType.PARAMETER_INTEGER
+                    output.integer_value = v
+                elif isinstance(v, float):
+                    output.type = ParameterType.PARAMETER_DOUBLE
+                    output.double_value = v
+                elif isinstance(v, str):
+                    output.type = ParameterType.PARAMETER_STRING
+                    output.string_value = v
+                else:
+                    print(
+                        f"Unsupported type for parameter {name}[{index}]: {type(v)}. "
+                        f"This should not have happened!"
+                    )
+
+        return output
 
     @staticmethod
     def extract_indexed_name(name: str):
@@ -187,27 +246,29 @@ class ControlBoardNode(ROS2Node):
             name, index = self.extract_indexed_name(p.name)
             value = rclpy.parameter.parameter_value_to_python(p.value)
             r = SetParametersResult()
-            if hasattr(self.state, name):
-                if index is not None:
-                    r.successful, r.reason = self.set_scalar_parameter(
-                        name, index, value
-                    )
-                else:
-                    if isinstance(value, list):
-                        r.successful, r.reason = self.set_vector_parameter(name, value)
-                    else:
-                        r.successful = False
-                        r.reason = f"Parameter {name} expects a list value"
+            if index is not None:
+                r.successful, r.reason = self.set_scalar_parameter(name, index, value)
             else:
-                r.successful = False
-                r.reason = f"Unknown parameter {name}"
+                if isinstance(value, list):
+                    r.successful, r.reason = self.set_vector_parameter(name, value)
+                else:
+                    r.successful = False
+                    r.reason = f"Parameter {p.name} expects a list value"
 
             results.append(r)
         response.results = results
         return response
 
     def callback_get_parameters(self, request, response):
-        # TODO implement
+        results = []
+        for n in request.names:
+            name, index = self.extract_indexed_name(n)
+            if index is not None:
+                param_value = self.get_scalar_parameter(name, index)
+            else:
+                param_value = self.get_vector_parameter(name)
+            results.append(param_value)
+        response.values = results
         return response
 
 
