@@ -10,17 +10,24 @@
 #                    Use db.log_error, db.log_warning to report problems in the compute function.
 #    og: The omni.graph.core module
 
-# Expects three inputs:
+# Expects seven inputs:
 # - deltaTime [float]: Time passed since last compute (in seconds)
+# - refence_joint_names [list[str]]: The list of joint names (optional)
+# - reference_position_commands [list[float]]: The list of joint position commands.
+# - reference_velocity_commands [list[float]]: The list of joint velocity commands.
+# - reference_effort_commands [list[float]]: The list of joint effort commands.
+# - robot_prim [target]: The robot prim
 # - domain_id [int]: The ROS2 domain ID (optional)
 # - useDomainIDEnvVar [bool]: Define whether to get the domain ID from an env var or not (optional)
 
 import dataclasses
+import enum
 import os
 
+import isaacsim.core.utils.stage as stage_utils
 import omni.graph.core as og
 import rclpy
-from aiohttp.log import internal_logger
+from isaacsim.core.api.robots import Robot
 from rcl_interfaces.msg import ParameterType, ParameterValue, SetParametersResult
 from rcl_interfaces.srv import GetParameters as GetParametersSrv
 from rcl_interfaces.srv import SetParameters as SetParametersSrv
@@ -29,6 +36,7 @@ from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node as ROS2Node
 
 
+# TODO: these might be inputs, eventually added automatically if they are not existing
 @dataclasses.dataclass
 class ControlBoardSettings:
     node_name: str
@@ -110,9 +118,18 @@ settings = ControlBoardSettings(
 )
 
 
+class ControlMode(enum.IntEnum):
+    IDLE = 0
+    POSITION = 1
+    POSITION_DIRECT = 2
+    VELOCITY = 3
+    TORQUE = 4
+
+
 class ControlBoardState:
     joint_names: list[str]
     control_modes: list[int]
+    previous_control_modes: list[int]
     position_p_gains: list[float]
     position_i_gains: list[float]
     position_d_gains: list[float]
@@ -122,7 +139,8 @@ class ControlBoardState:
     def __init__(self, s: ControlBoardSettings):
         self.joint_names = s.joint_names
         n_joints = len(self.joint_names)
-        self.control_modes = [1] * n_joints
+        self.control_modes = [ControlMode.POSITION] * n_joints
+        self.previous_control_modes = [ControlMode.POSITION] * n_joints
         self.position_p_gains = s.position_p_gains
         self.position_i_gains = s.position_i_gains
         self.position_d_gains = s.position_d_gains
@@ -280,6 +298,11 @@ class ControlBoardPID:
     kd: float
     max_integral: float
     max_output: float
+    reference: float | None
+    measurement: float
+    integral_state: float
+    previous_error: float
+    output: float
 
     def __init__(self, p=0.0, i=0.0, d=0.0, max_integral=0.0, max_output=0.0):
         self.kp = p
@@ -287,10 +310,20 @@ class ControlBoardPID:
         self.kd = d
         self.max_integral = max_integral
         self.max_output = max_output
+
         self.integral_state = 0.0
         self.previous_error = 0.0
+        self.reference = None
 
-    def compute(self, error, delta_time):
+    def set_refence(self, reference):
+        self.reference = reference
+
+    def compute(self, delta_time, measurement):
+
+        if not self.reference:
+            self.reference = measurement
+
+        error = self.reference - measurement
         # Proportional term
         p_term = self.kp * error
 
@@ -309,14 +342,20 @@ class ControlBoardPID:
         d_term = self.kd * derivative
 
         # Total output
-        output = p_term + i_term + d_term
-        output = max(min(output, self.max_output), -self.max_output)
+        self.output = p_term + i_term + d_term
+        self.output = max(min(self.output, self.max_output), -self.max_output)
 
-        return output
+        return self.output
 
     def reset(self):
         self.integral_state = 0.0
         self.previous_error = 0.0
+
+    def get_output(self):
+        return self.output
+
+    def get_error(self):
+        return self.previous_error
 
 
 class ControlBoardData:
@@ -326,6 +365,8 @@ class ControlBoardData:
         self.context = None
         self.node = None
         self.executor = None
+        self.robot = None
+        self.robot_joint_indices = None
         self.initialized = False
 
 
@@ -357,6 +398,34 @@ def choose_domain_id(db) -> int:
     return int(domain_id_input)
 
 
+def create_robot_object(db: og.Database, name, joint_names):
+    if not hasattr(db.inputs, "robot_prim") or db.inputs.robot_prim is None:
+        db.log_error("robot_prim input is not set")
+        return None
+
+    stage = stage_utils.get_current_stage()
+    robot_prim_path = db.inputs.robot_prim[0].pathString
+    robot_prim = stage.GetPrimAtPath(robot_prim_path)
+    if not robot_prim.IsValid():
+        db.log_error(f"robot_prim path {robot_prim_path} is not valid")
+        return None
+    if not robot_prim.HasAPI("IsaacRobotAPI"):
+        db.log_error(f"The specified prim ({robot_prim}) is not a robot")
+        return None
+    robot = Robot(prim_path=robot_prim, name=name)
+    robot.initialize()
+
+    joint_indices = []
+    for j in joint_names:
+        if j not in robot.dof_names:
+            db.log_error(f"Joint {j} not found in the robot")
+            return None
+        j_robot_index = robot.dof_names.index(j)
+        joint_indices.append(j_robot_index)
+
+    return robot, joint_indices
+
+
 def setup(db: og.Database):
     domain_id = choose_domain_id(db=db)
     db.per_instance_state.state = ControlBoardState(s=settings)
@@ -374,6 +443,17 @@ def setup(db: og.Database):
         context=db.per_instance_state.context
     )
     db.per_instance_state.executor.add_node(db.per_instance_state.node)
+    robot, robot_joint_indices = create_robot_object(
+        db, name=settings.node_name, joint_names=settings.joint_names
+    )
+    if not robot:
+        db.per_instance_state.initialized = False
+        db.log_error("Failed to create robot object")
+        return
+
+    db.per_instance_state.robot = robot
+    db.per_instance_state.robot_joint_indices = robot_joint_indices
+
     db.per_instance_state.initialized = True
 
 
@@ -387,8 +467,77 @@ def cleanup(db: og.Database):
     db.per_instance_state.executor.shutdown()
     db.per_instance_state.node.destroy_node()
     db.per_instance_state.context.destroy()
-
+    db.per_instance_state.robot = None
     db.per_instance_state.initialized = False
+
+
+def get_pid_output(
+    db: og.Database,
+    joint_index: int,
+    measured_position: float,
+    measured_velocity: float,
+    measured_effort: float,
+) -> float:
+    script_state = db.per_instance_state
+    name = script_state.state.joint_names[joint_index]
+    delta_time = (
+        db.inputs.deltaTime
+        if hasattr(db.inputs, "deltaTime") and db.inputs.deltaTime is not None
+        else 0.0
+    )
+
+    if joint_index not in script_state.pids:
+        script_state.pids[joint_index] = {}
+
+    control_mode = script_state.state.control_modes[joint_index]
+    if control_mode not in script_state.pids[joint_index]:
+        if control_mode == ControlMode.POSITION:  # position control
+            script_state.pids[joint_index][control_mode] = ControlBoardPID(
+                p=script_state.state.position_p_gains[joint_index],
+                i=script_state.state.position_i_gains[joint_index],
+                d=script_state.state.position_d_gains[joint_index],
+                max_integral=script_state.state.position_max_integral[joint_index],
+                max_output=script_state.state.position_max_output[joint_index],
+            )
+        if control_mode == ControlMode.IDLE:
+            script_state.pids[joint_index][control_mode] = None
+        else:
+            script_state.pids[joint_index][control_mode] = None
+            print(
+                f"Unsupported control mode {control_mode} "
+                f"for joint {script_state.state.joint_names[joint_index]}"
+            )
+
+    pid = script_state.pids[joint_index][control_mode]
+    if pid is None:
+        return 0.0
+
+    if control_mode == ControlMode.POSITION:
+        # TODO: add smoother
+        # TODO: add clamping given joint limits
+        # TODO: get joint limits
+
+        if script_state.state.previous_control_modes[joint_index] != control_mode:
+            pid.reset()
+        script_state.state.previous_control_modes[joint_index] = control_mode
+
+        if (
+            hasattr(db.inputs, "reference_joint_names")
+            and db.inputs.reference_joint_names is not None
+            and name in db.inputs.reference_joint_names
+        ):
+            cmd_index = db.inputs.reference_joint_names.index(name)
+            if (
+                hasattr(db.inputs, "reference_position_commands")
+                and db.inputs.reference_position_commands is not None
+                and cmd_index < len(db.inputs.reference_position_commands)
+            ):
+                reference = db.inputs.reference_position_commands[cmd_index]
+                pid.set_refence(reference)
+
+        return pid.compute(delta_time, measured_position)
+    else:
+        return 0.0
 
 
 def compute(db: og.Database):
@@ -398,46 +547,36 @@ def compute(db: og.Database):
     ):
         setup(db)
 
+    if not db.per_instance_state.initialized:
+        return False
+
     script_state = db.per_instance_state
+
+    joint_state = script_state.robot.get_joints_state()
+    if joint_state is None:
+        db.log_warning(
+            f"Failed to get joint states in {script_state.robot.name}. "
+            f"Initializing again."
+        )
+        script_state.robot.initialize()
+        return False
 
     if rclpy.ok(context=script_state.context):
         script_state.executor.spin_once(timeout_sec=settings.node_timeout)
 
     output_effort = []
     for i in range(len(script_state.state.joint_names)):
-        if i not in script_state.pids:
-            script_state.pids[i] = {}
+        robot_index = script_state.robot_joint_indices[i]
+        measured_position = joint_state.positions[robot_index]
+        measured_velocity = joint_state.velocities[robot_index]
+        measured_effort = joint_state.efforts[robot_index]
+        output_effort.append(
+            get_pid_output(db, i, measured_position, measured_velocity, measured_effort)
+        )
 
-        if script_state.state.control_modes[i] not in script_state.pids[i]:
-            if script_state.state.control_modes[i] == 1:  # position control
-                script_state.pids[i][script_state.state.control_modes[i]] = (
-                    ControlBoardPID(
-                        p=script_state.state.position_p_gains[i],
-                        i=script_state.state.position_i_gains[i],
-                        d=script_state.state.position_d_gains[i],
-                        max_integral=script_state.state.position_max_integral[i],
-                        max_output=script_state.state.position_max_output[i],
-                    )
-                )
-            else:
-                script_state.pids[i][script_state.state.control_modes[i]] = None
-                print(
-                    f"Unsupported control mode {script_state.state.control_modes[i]} "
-                    f"for joint {script_state.state.joint_names[i]}"
-                )
-
-        pid = script_state.pids[i][script_state.state.control_modes[i]]
-        if pid is not None:
-            if script_state.state.control_modes[i] == 1:
-                error = (
-                    db.inputs.joint_position_commands[i] - db.inputs.joint_positions[i]
-                )
-                command = pid.compute(error, db.inputs.deltaTime)
-                output_effort.append(command)
-            else:
-                output_effort.append(0.0)
-        else:
-            output_effort.append(0.0)
+    script_state.robot.set_joint_efforts(
+        efforts=output_effort, joint_indices=script_state.robot_joint_indices
+    )
 
     return True
 
