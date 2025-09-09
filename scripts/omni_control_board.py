@@ -477,6 +477,9 @@ def get_pid_output(
     measured_position: float,
     measured_velocity: float,
     measured_effort: float,
+    lower_limit: float,
+    upper_limit: float,
+    max_velocity: float,
 ) -> float:
     script_state = db.per_instance_state
     name = script_state.state.joint_names[joint_index]
@@ -514,8 +517,6 @@ def get_pid_output(
 
     if control_mode == ControlMode.POSITION:
         # TODO: add smoother
-        # TODO: add clamping given joint limits
-        # TODO: get joint limits
 
         if script_state.state.previous_control_modes[joint_index] != control_mode:
             pid.reset()
@@ -531,8 +532,10 @@ def get_pid_output(
                 hasattr(db.inputs, "reference_position_commands")
                 and db.inputs.reference_position_commands is not None
                 and cmd_index < len(db.inputs.reference_position_commands)
+                and db.inputs.reference_position_commands[cmd_index] is not None
             ):
                 reference = db.inputs.reference_position_commands[cmd_index]
+                reference = max(min(reference, upper_limit), lower_limit)
                 pid.set_refence(reference)
 
         return pid.compute(delta_time, measured_position)
@@ -570,9 +573,31 @@ def compute(db: og.Database):
         measured_position = joint_state.positions[robot_index]
         measured_velocity = joint_state.velocities[robot_index]
         measured_effort = joint_state.efforts[robot_index]
-        output_effort.append(
-            get_pid_output(db, i, measured_position, measured_velocity, measured_effort)
+        has_limits = script_state.robot.dof_properties["hasLimits"][robot_index]
+
+        if has_limits:
+            lower_limit = script_state.robot.dof_properties["lower"][robot_index]
+            upper_limit = script_state.robot.dof_properties["upper"][robot_index]
+            max_velocity = script_state.robot.dof_properties["maxVelocity"][robot_index]
+            max_effort = script_state.robot.dof_properties["maxEffort"][robot_index]
+        else:
+            lower_limit = -float("inf")
+            upper_limit = float("inf")
+            max_velocity = float("inf")
+            max_effort = float("inf")
+
+        effort = get_pid_output(
+            db=db,
+            joint_index=i,
+            measured_position=measured_position,
+            measured_velocity=measured_velocity,
+            measured_effort=measured_effort,
+            lower_limit=lower_limit,
+            upper_limit=upper_limit,
+            max_velocity=max_velocity,
         )
+        effort = max(min(effort, max_effort), -max_effort)
+        output_effort.append(effort)
 
     script_state.robot.set_joint_efforts(
         efforts=output_effort, joint_indices=script_state.robot_joint_indices
