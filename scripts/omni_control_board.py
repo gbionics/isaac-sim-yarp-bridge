@@ -22,6 +22,7 @@
 
 import dataclasses
 import enum
+import math
 import os
 
 import isaacsim.core.utils.stage as stage_utils
@@ -49,6 +50,7 @@ class ControlBoardSettings:
     position_d_gains: list[float]
     position_max_integral: list[float]
     position_max_output: list[float]
+    position_default_velocity: float
 
 
 # TODO: change this
@@ -115,6 +117,7 @@ settings = ControlBoardSettings(
     position_d_gains=[20.0] * 51,
     position_max_integral=[10.0] * 51,
     position_max_output=[100.0] * 51,
+    position_default_velocity=10.0 / 180.0 * math.pi,  # rad/s
 )
 
 
@@ -292,36 +295,208 @@ class ControlBoardNode(ROS2Node):
         return response
 
 
+# This class has been inspired from
+# https://github.com/robotology/gz-sim-yarp-plugins/blob/eb489facf1e5ca2eef59e8b5875d7c784780bd3a/plugins/controlboard/src/ControlBoardTrajectory.cpp#L130-L366
+class MinJerkTrajectoryGenerator:
+    def __init__(self):
+        # trajectory parameters
+        self.initial_position = 0.0
+        self.final_position = 0.0
+        self.initial_scaled_velocity = 0.0
+
+        self.speed = 0.0
+        self.num_steps = 0.0
+        self.step = 0.0
+        self.cur_t = 0.0
+
+        # trajectory coefficients
+        self.coefficient_1 = 0.0
+        self.coefficient_2 = 0.0
+        self.coefficient_3 = 0.0
+
+        self.trajectory_completed = True
+        self.initialized = False
+
+    def _compute_fifth_order_poly(self, t: float) -> float:
+        output = self.initial_scaled_velocity * t
+        tmp = t * t * t
+        output += tmp * self.coefficient_1
+        tmp *= t
+        output -= tmp * self.coefficient_2
+        tmp *= t
+        output += tmp * self.coefficient_3
+        return output
+
+    def _compute_fifth_order_poly_velocity(self, t: float) -> float:
+        output = -2 * self.initial_scaled_velocity * t - self.initial_scaled_velocity
+        output += (
+            30 * self.initial_position
+            + 15 * self.initial_scaled_velocity
+            - 30 * self.final_position
+        ) * (t * t)
+        output = -output / self.num_steps * (t - 1) * (t - 1)
+        return output
+
+    def compute_current_velocity(self) -> float:
+        if self.trajectory_completed or not self.initialized:
+            return 0.0
+        if self.cur_t == 0:
+            return 0.0
+        elif self.cur_t < 1.0 - self.step:
+            return self._compute_fifth_order_poly_velocity(self.cur_t)
+        return 0.0
+
+    def _abort_trajectory(self, limit: float) -> bool:
+        self.trajectory_completed = True
+        self.cur_t = 0.0
+        self.final_position = limit
+        self.initialized = False
+        return True
+
+    def compute_trajectory(self) -> float | None:
+        if not self.initialized:
+            return None
+
+        if self.trajectory_completed:
+            target = self.final_position
+            return target
+
+        if self.cur_t == 0:
+            self.cur_t += self.step
+
+            target = self.initial_position
+            return target
+        elif self.cur_t < 1.0 - self.step:
+            target = self._compute_fifth_order_poly(self.cur_t) + self.initial_position
+
+            self.cur_t += self.step
+
+            return target
+
+        self.trajectory_completed = True
+        return self.final_position
+
+    def init_trajectory(
+        self,
+        current_position: float,
+        final_position: float,
+        speed: float,
+        delta_t: int,
+    ) -> bool:
+
+        if speed <= 0:
+            return False
+
+        initial_velocity = self.compute_current_velocity()
+        self.initial_position = current_position
+        self.final_position = final_position
+
+        self.speed = speed
+
+        # Number of steps to complete the trajectory
+        self.num_steps = (
+            abs(self.final_position - self.initial_position) / abs(speed)
+        ) / delta_t
+
+        # Scale the initial velocity to the new trajectory time
+        self.initial_scaled_velocity = initial_velocity * self.num_steps
+
+        dx0 = self.initial_scaled_velocity
+        self.coefficient_1 = (
+            10 * (self.final_position - self.initial_position) - 6 * dx0
+        )
+        self.coefficient_2 = (
+            15 * (self.final_position - self.initial_position) - 8 * dx0
+        )
+        self.coefficient_3 = 6 * (self.final_position - self.initial_position) - 3 * dx0
+
+        if self.num_steps < 1 or self.num_steps == 0:
+            self._abort_trajectory(final_position)
+            self.step = 0.0
+            return False
+        else:
+            self.step = 1.0 / self.num_steps
+
+        self.cur_t = 0.0
+        self.trajectory_completed = False
+        self.initialized = True
+
+        return True
+
+
 class ControlBoardPID:
     kp: float
     ki: float
     kd: float
     max_integral: float
     max_output: float
+    default_velocity: float
     reference: float | None
+    input_reference: float | None
+    input_reference_velocity: float | None
     measurement: float
     integral_state: float
     previous_error: float
     output: float
+    smoother: None
 
-    def __init__(self, p=0.0, i=0.0, d=0.0, max_integral=0.0, max_output=0.0):
+    def __init__(self, p, i, d, max_integral, max_output, default_velocity):
         self.kp = p
         self.ki = i
         self.kd = d
         self.max_integral = max_integral
         self.max_output = max_output
+        self.default_velocity = default_velocity
+
+        self.measurement = 0.0
+        self.output = 0.0
 
         self.integral_state = 0.0
         self.previous_error = 0.0
         self.reference = None
+        self.smoother = None
+        self.input_reference = None
+        self.input_reference_velocity = None
 
-    def set_refence(self, reference):
-        self.reference = reference
+    def set_reference(self, reference, velocity=None):
+        self.input_reference = reference
+        self.input_reference_velocity = velocity
+
+    def set_smoother(self, smoother):
+        self.smoother = smoother
 
     def compute(self, delta_time, measurement):
+        if self.smoother:
+            # Reinitialize the smoother if not initialized or if the reference changed
+            if not self.smoother.initialized or self.input_reference:
+                # If no input reference is set, use the current measurement as reference
+                ref = self.input_reference if self.input_reference else measurement
+                speed = (
+                    self.input_reference_velocity
+                    if self.input_reference_velocity
+                    else self.default_velocity
+                )
+                self.smoother.init_trajectory(
+                    current_position=measurement,
+                    final_position=ref,
+                    speed=speed,
+                    delta_t=delta_time,
+                )
 
-        if not self.reference:
+            self.reference = (
+                self.smoother.compute_trajectory()
+                if self.smoother.initialized
+                else measurement
+            )
+        elif self.input_reference:
+            self.reference = self.input_reference
+
+        # If no reference is set, use the current measurement as reference
+        if self.reference is None:
             self.reference = measurement
+
+        self.input_reference = None  # reset the input reference
+        self.input_reference_velocity = None  # reset the input reference velocity
 
         error = self.reference - measurement
         # Proportional term
@@ -357,12 +532,17 @@ class ControlBoardPID:
     def reset(self):
         self.integral_state = 0.0
         self.previous_error = 0.0
+        if self.smoother:
+            self.smoother.initialized = False
 
     def get_output(self):
         return self.output
 
     def get_error(self):
         return self.previous_error
+
+    def get_reference(self):
+        return self.reference
 
 
 class ControlBoardData:
@@ -501,8 +681,10 @@ def get_pid_output(
 
     control_mode = script_state.state.control_modes[joint_index]
 
-    if control_mode == ControlMode.POSITION:
-        # TODO: add smoother
+    if (
+        control_mode == ControlMode.POSITION
+        or control_mode == ControlMode.POSITION_DIRECT
+    ):
         pid = script_state.pids[joint_index].get(control_mode, None)
         if pid is None:
             script_state.pids[joint_index][control_mode] = ControlBoardPID(
@@ -511,6 +693,7 @@ def get_pid_output(
                 d=script_state.state.position_d_gains[joint_index],
                 max_integral=script_state.state.position_max_integral[joint_index],
                 max_output=script_state.state.position_max_output[joint_index],
+                default_velocity=settings.position_default_velocity,
             )
             pid = script_state.pids[joint_index][control_mode]
         else:
@@ -522,9 +705,14 @@ def get_pid_output(
                 max_output=script_state.state.position_max_output[joint_index],
             )
 
+        if control_mode == ControlMode.POSITION and pid.smoother is None:
+            pid.set_smoother(MinJerkTrajectoryGenerator())
+
         if script_state.state.previous_control_modes[joint_index] != control_mode:
             pid.reset()
         script_state.state.previous_control_modes[joint_index] = control_mode
+
+        velocity_reference = None
 
         if (
             hasattr(db.inputs, "reference_joint_names")
@@ -533,6 +721,19 @@ def get_pid_output(
         ):
             cmd_index = db.inputs.reference_joint_names.index(name)
             if (
+                hasattr(db.inputs, "reference_velocity_commands")
+                and db.inputs.reference_velocity_commands is not None
+                and cmd_index < len(db.inputs.reference_velocity_commands)
+                and db.inputs.reference_velocity_commands[cmd_index] is not None
+                and db.inputs.reference_velocity_commands[cmd_index] > 0.0
+                and control_mode == ControlMode.POSITION
+            ):
+                velocity_reference = db.inputs.reference_velocity_commands[cmd_index]
+                velocity_reference = max(
+                    min(velocity_reference, max_velocity), -max_velocity
+                )
+
+            if (
                 hasattr(db.inputs, "reference_position_commands")
                 and db.inputs.reference_position_commands is not None
                 and cmd_index < len(db.inputs.reference_position_commands)
@@ -540,9 +741,10 @@ def get_pid_output(
             ):
                 reference = db.inputs.reference_position_commands[cmd_index]
                 reference = max(min(reference, upper_limit), lower_limit)
-                pid.set_refence(reference)
+                pid.set_reference(reference, velocity_reference)
 
         return pid.compute(delta_time, measured_position)
+
     elif control_mode == ControlMode.TORQUE:
         if (
             script_state.state.previous_control_modes[joint_index] != control_mode
@@ -645,3 +847,10 @@ def compute(db: og.Database):
 
 def internal_state():
     return ControlBoardData()
+
+
+# TODO:
+# Add velocity control mode
+# Add current control mode
+# Add compliant mode
+# Update the state with the outputs of the PIDs
