@@ -853,4 +853,20 @@ def internal_state():
 # Add velocity control mode
 # Add current control mode
 # Add compliant mode
+#   Allow setting the impedance offset
 # Update the state with the outputs of the PIDs
+#   PID reference
+#   PID error
+#   PID output
+#   motion done
+#   last joint fault
+#
+# Publish the state such that the joint names in the message are the same as the input
+# Publish the motor state
+
+# TODO: missing info:
+# - pid error limit
+# - pid offset (??)
+# - disable/enable pid
+# - reset pid
+# - stop position control
