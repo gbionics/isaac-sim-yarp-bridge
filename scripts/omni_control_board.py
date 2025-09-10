@@ -141,6 +141,7 @@ class ControlMode(enum.IntEnum):
     POSITION_DIRECT = 2
     VELOCITY = 3
     TORQUE = 4
+    HARDWARE_FAULT = 5
 
 
 class ControlBoardState:
@@ -149,6 +150,7 @@ class ControlBoardState:
     # Control modes
     control_modes: list[int]
     previous_control_modes: list[int]
+    hf_messages: list[str]
 
     # Position PID settings
     position_p_gains: list[float]
@@ -190,6 +192,7 @@ class ControlBoardState:
         n_joints = len(self.joint_names)
         self.control_modes = [ControlMode.POSITION] * n_joints
         self.previous_control_modes = [ControlMode.POSITION] * n_joints
+        self.hf_messages = [""] * n_joints
         self.position_p_gains = s.position_p_gains
         self.position_i_gains = s.position_i_gains
         self.position_d_gains = s.position_d_gains
@@ -882,12 +885,17 @@ def get_pid_output(
 
         return script_state.pids[joint_index][control_mode]
 
-    elif control_mode == ControlMode.IDLE:
+    elif control_mode == ControlMode.IDLE or control_mode == ControlMode.HARDWARE_FAULT:
         script_state.state.previous_control_modes[joint_index] = control_mode
         return 0.0
     else:
-        script_state.state.previous_control_modes[joint_index] = control_mode
-        # TODO: here we could set it in hardware fault mode
+        script_state.state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+        script_state.state.previous_control_modes[joint_index] = (
+            ControlMode.HARDWARE_FAULT
+        )
+        script_state.state.hf_messages[joint_index] = (
+            f"Unsupported control mode {control_mode}"
+        )
         db.log_error(
             f"Unsupported control mode {control_mode} "
             f"for joint {script_state.state.joint_names[joint_index]}"
@@ -1003,6 +1011,12 @@ def compute(db: og.Database):
             max_velocity = float("inf")
             max_effort = float("inf")
 
+        if abs(measured_effort) > max_effort:
+            script_state.state.control_modes[i] = ControlMode.HARDWARE_FAULT
+            script_state.state.hf_messages[i] = (
+                f"Measured effort {measured_effort} exceeds max effort {max_effort}"
+            )
+
         effort = get_pid_output(
             db=db,
             joint_index=i,
@@ -1047,7 +1061,6 @@ def internal_state():
 # Add compliant mode
 #   Allow setting the impedance offset
 # Publish the motor state
-# Put the joint in HF if the effort is too high
 
 # TODO: missing info:
 # - pid error limit
