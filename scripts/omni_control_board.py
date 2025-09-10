@@ -747,6 +747,7 @@ def get_pid_output(
     lower_limit: float,
     upper_limit: float,
     max_velocity: float,
+    max_effort: float,
 ) -> float:
     script_state = db.per_instance_state
     name = script_state.state.joint_names[joint_index]
@@ -760,6 +761,39 @@ def get_pid_output(
         script_state.pids[joint_index] = {}
 
     control_mode = script_state.state.control_modes[joint_index]
+
+    reference_names = (
+        db.inputs.reference_joint_names
+        if hasattr(db.inputs, "reference_joint_names")
+        and db.inputs.reference_joint_names is not None
+        else []
+    )
+
+    has_reference_name = reference_names and name in reference_names
+    reference_index = reference_names.index(name) if has_reference_name else None
+
+    def get_reference(field):
+        if (
+            has_reference_name
+            and hasattr(db.inputs, field)
+            and getattr(db.inputs, field) is not None
+            and reference_index < len(getattr(db.inputs, field))
+            and not math.isnan(getattr(db.inputs, field)[reference_index])
+        ):
+            return getattr(db.inputs, field)[reference_index]
+        return None
+
+    reference_position = get_reference("reference_position_commands")
+    if reference_position:
+        reference_position = max(min(reference_position, upper_limit), lower_limit)
+
+    reference_velocity = get_reference("reference_velocity_commands")
+    if reference_velocity:
+        reference_velocity = max(min(reference_velocity, max_velocity), -max_velocity)
+
+    reference_effort = get_reference("reference_effort_commands")
+    if reference_effort:
+        reference_effort = max(min(reference_effort, max_effort), -max_effort)
 
     if (
         control_mode == ControlMode.POSITION
@@ -792,36 +826,15 @@ def get_pid_output(
             pid.reset()
         script_state.state.previous_control_modes[joint_index] = control_mode
 
-        velocity_reference = None
-
-        if (
-            hasattr(db.inputs, "reference_joint_names")
-            and db.inputs.reference_joint_names is not None
-            and name in db.inputs.reference_joint_names
-        ):
-            cmd_index = db.inputs.reference_joint_names.index(name)
-            if (
-                hasattr(db.inputs, "reference_velocity_commands")
-                and db.inputs.reference_velocity_commands is not None
-                and cmd_index < len(db.inputs.reference_velocity_commands)
-                and db.inputs.reference_velocity_commands[cmd_index] is not None
-                and db.inputs.reference_velocity_commands[cmd_index] > 0.0
+        if reference_position:
+            ref_vel = (
+                reference_velocity
+                if reference_velocity
+                and reference_velocity > 0.0
                 and control_mode == ControlMode.POSITION
-            ):
-                velocity_reference = db.inputs.reference_velocity_commands[cmd_index]
-                velocity_reference = max(
-                    min(velocity_reference, max_velocity), -max_velocity
-                )
-
-            if (
-                hasattr(db.inputs, "reference_position_commands")
-                and db.inputs.reference_position_commands is not None
-                and cmd_index < len(db.inputs.reference_position_commands)
-                and db.inputs.reference_position_commands[cmd_index] is not None
-            ):
-                reference = db.inputs.reference_position_commands[cmd_index]
-                reference = max(min(reference, upper_limit), lower_limit)
-                pid.set_reference(reference, velocity_reference)
+                else None
+            )
+            pid.set_reference(reference_position, ref_vel)
 
         return pid.compute(delta_time, measured_position)
 
@@ -850,21 +863,8 @@ def get_pid_output(
             pid.reset()
         script_state.state.previous_control_modes[joint_index] = control_mode
 
-        if (
-            hasattr(db.inputs, "reference_joint_names")
-            and db.inputs.reference_joint_names is not None
-            and name in db.inputs.reference_joint_names
-        ):
-            cmd_index = db.inputs.reference_joint_names.index(name)
-            if (
-                hasattr(db.inputs, "reference_velocity_commands")
-                and db.inputs.reference_velocity_commands is not None
-                and cmd_index < len(db.inputs.reference_velocity_commands)
-                and db.inputs.reference_velocity_commands[cmd_index] is not None
-            ):
-                reference = db.inputs.reference_velocity_commands[cmd_index]
-                reference = max(min(reference, max_velocity), -max_velocity)
-                pid.set_reference(reference)
+        if reference_velocity:
+            pid.set_reference(reference_velocity)
 
         return pid.compute(delta_time, measured_velocity)
 
@@ -876,20 +876,9 @@ def get_pid_output(
             # For the torque mode, we don't set a PID, but we just store the reference
             script_state.pids[joint_index][control_mode] = measured_effort
         script_state.state.previous_control_modes[joint_index] = control_mode
-        if (
-            hasattr(db.inputs, "reference_joint_names")
-            and db.inputs.reference_joint_names is not None
-            and name in db.inputs.reference_joint_names
-        ):
-            cmd_index = db.inputs.reference_joint_names.index(name)
-            if (
-                hasattr(db.inputs, "reference_effort_commands")
-                and db.inputs.reference_effort_commands is not None
-                and cmd_index < len(db.inputs.reference_effort_commands)
-                and db.inputs.reference_effort_commands[cmd_index] is not None
-            ):
-                reference = db.inputs.reference_effort_commands[cmd_index]
-                script_state.pids[joint_index][control_mode] = reference
+
+        if reference_effort:
+            script_state.pids[joint_index][control_mode] = reference_effort
 
         return script_state.pids[joint_index][control_mode]
 
@@ -898,6 +887,7 @@ def get_pid_output(
         return 0.0
     else:
         script_state.state.previous_control_modes[joint_index] = control_mode
+        # TODO: here we could set it in hardware fault mode
         db.log_error(
             f"Unsupported control mode {control_mode} "
             f"for joint {script_state.state.joint_names[joint_index]}"
@@ -1022,6 +1012,7 @@ def compute(db: og.Database):
             lower_limit=lower_limit,
             upper_limit=upper_limit,
             max_velocity=max_velocity,
+            max_effort=max_effort,
         )
         effort = max(min(effort, max_effort), -max_effort)
         output_effort.append(effort)
