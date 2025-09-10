@@ -10,7 +10,8 @@
 #                    Use db.log_error, db.log_warning to report problems in the compute function.
 #    og: The omni.graph.core module
 
-# Expects seven inputs:
+# Expects eight inputs:
+# - timestamp [float]: The current simulation time (in seconds)
 # - deltaTime [float]: Time passed since last compute (in seconds)
 # - refence_joint_names [list[str]]: The list of joint names (optional)
 # - reference_position_commands [list[float]]: The list of joint position commands.
@@ -35,6 +36,7 @@ from rcl_interfaces.srv import SetParameters as SetParametersSrv
 from rclpy.context import Context as ROS2Context
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node as ROS2Node
+from sensor_msgs.msg import JointState
 
 
 # TODO: these might be inputs, eventually added automatically if they are not existing
@@ -43,6 +45,7 @@ class ControlBoardSettings:
     node_name: str
     node_set_parameters_service_name: str
     node_get_parameters_service_name: str
+    node_state_topic_name: str
     node_timeout: float
     joint_names: list[str]
     position_p_gains: list[float]
@@ -58,6 +61,7 @@ settings = ControlBoardSettings(
     node_name="isaac_sim_control_board_state",
     node_set_parameters_service_name="ergocub/controlboard/set_parameters",
     node_get_parameters_service_name="ergocub/controlboard/get_parameters",
+    node_state_topic_name="ergocub/joint_states",
     node_timeout=0.1,
     joint_names=[
         "camera_tilt",
@@ -157,6 +161,7 @@ class ControlBoardNode(ROS2Node):
         node_name: str,
         set_service_name: str,
         get_service_name: str,
+        state_topic_name: str,
         context,
         state,
     ):
@@ -167,6 +172,8 @@ class ControlBoardNode(ROS2Node):
         self.get_srv = self.create_service(
             GetParametersSrv, get_service_name, self.callback_get_parameters
         )
+        self.state_pub = self.create_publisher(JointState, state_topic_name, 10)
+
         self.state = state
 
     def set_vector_parameter(self, name: str, value: list):
@@ -293,6 +300,16 @@ class ControlBoardNode(ROS2Node):
             results.append(param_value)
         response.values = results
         return response
+
+    def publish_state(self, timestamp, positions, velocities, efforts):
+        msg = JointState()
+        msg.header.stamp.sec = int(timestamp)
+        msg.header.stamp.nanosec = int((timestamp - int(timestamp)) * 1e9)
+        msg.name = self.state.joint_names
+        msg.position = positions
+        msg.velocity = velocities
+        msg.effort = efforts
+        self.state_pub.publish(msg)
 
 
 # This class has been inspired from
@@ -623,6 +640,7 @@ def setup(db: og.Database):
         node_name=settings.node_name,
         set_service_name=settings.node_set_parameters_service_name,
         get_service_name=settings.node_get_parameters_service_name,
+        state_topic_name=settings.node_state_topic_name,
         context=db.per_instance_state.context,
         state=db.per_instance_state.state,
     )
@@ -807,11 +825,21 @@ def compute(db: og.Database):
         script_state.executor.spin_once(timeout_sec=settings.node_timeout)
 
     output_effort = []
+    positions = [0.0] * len(script_state.state.joint_names)
+    velocities = [0.0] * len(script_state.state.joint_names)
+    efforts = [0.0] * len(script_state.state.joint_names)
     for i in range(len(script_state.state.joint_names)):
         robot_index = script_state.robot_joint_indices[i]
+
         measured_position = joint_state.positions[robot_index]
+        positions[i] = measured_position
+
         measured_velocity = joint_state.velocities[robot_index]
+        velocities[i] = measured_velocity
+
         measured_effort = joint_state.efforts[robot_index]
+        efforts[i] = joint_state.efforts[robot_index]
+
         has_limits = script_state.robot.dof_properties["hasLimits"][robot_index]
 
         if has_limits:
@@ -842,6 +870,18 @@ def compute(db: og.Database):
         efforts=output_effort, joint_indices=script_state.robot_joint_indices
     )
 
+    timestamp = (
+        db.inputs.timestamp
+        if hasattr(db.inputs, "timestamp") and db.inputs.timestamp is not None
+        else 0.0
+    )
+    script_state.node.publish_state(
+        timestamp=timestamp,
+        positions=positions,
+        velocities=velocities,
+        efforts=efforts,
+    )
+
     return True
 
 
@@ -861,7 +901,6 @@ def internal_state():
 #   motion done
 #   last joint fault
 #
-# Publish the state such that the joint names in the message are the same as the input
 # Publish the motor state
 
 # TODO: missing info:
