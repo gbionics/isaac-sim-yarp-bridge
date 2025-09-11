@@ -72,6 +72,7 @@ class ControlBoardSettings:
     motor_torque_constants: list[float]
     motor_current_noise_variance: list[float]
     motor_spring_stiffness: list[float]
+    motor_max_currents: list[float]
 
 
 # TODO: change this
@@ -149,9 +150,10 @@ settings = ControlBoardSettings(
     velocity_max_output=[100.0] * 51,
     velocity_max_error=[math.pi] * 51,
     gearbox_ratios=[1.0] * 51,
-    motor_torque_constants=[0.1] * 51,
+    motor_torque_constants=[1.0] * 51,
     motor_current_noise_variance=[0.0] * 51,
     motor_spring_stiffness=[0.0] * 51,
+    motor_max_currents=[100.0] * 51,
 )
 
 
@@ -161,7 +163,8 @@ class ControlMode(enum.IntEnum):
     POSITION_DIRECT = 2
     VELOCITY = 3
     TORQUE = 4
-    HARDWARE_FAULT = 5
+    CURRENT = 5
+    HARDWARE_FAULT = 6
 
 
 class ControlBoardState:
@@ -217,11 +220,18 @@ class ControlBoardState:
     torque_pid_outputs: list[float]
     torque_pid_enabled: list[bool]
 
+    # Current PID state
+    current_pid_references: list[float]
+    current_pid_errors: list[float]
+    current_pid_outputs: list[float]
+    current_pid_enabled: list[bool]
+
     # Motor settings
     gearbox_ratios: list[float]  # Motor to joint
     motor_torque_constants: list[float]
     motor_current_noise_variance: list[float]
     motor_spring_stiffness: list[float]
+    motor_max_currents: list[float]
 
     def __init__(self, s: ControlBoardSettings):
         self.joint_names = s.joint_names
@@ -263,10 +273,16 @@ class ControlBoardState:
         self.torque_pid_errors = [0.0] * n_joints
         self.torque_pid_outputs = [float("nan")] * n_joints
         self.torque_pid_enabled = [True] * n_joints
+        # Similarly, for the current mode, we convert the current reference to torque
+        self.current_pid_references = [float("nan")] * n_joints
+        self.current_pid_errors = [0.0] * n_joints
+        self.current_pid_outputs = [float("nan")] * n_joints
+        self.current_pid_enabled = [True] * n_joints
         self.gearbox_ratios = s.gearbox_ratios
         self.motor_torque_constants = s.motor_torque_constants
         self.motor_current_noise_variance = s.motor_current_noise_variance
         self.motor_spring_stiffness = s.motor_spring_stiffness
+        self.motor_max_currents = s.motor_max_currents
         self.settings = s
 
 
@@ -830,10 +846,12 @@ def get_pid_output(
     measured_position: float,
     measured_velocity: float,
     measured_effort: float,
+    measured_motor_current: float,
     lower_limit: float,
     upper_limit: float,
     max_velocity: float,
     max_effort: float,
+    max_current: float,
 ) -> float:
     script_state = db.per_instance_state
     name = script_state.state.joint_names[joint_index]
@@ -880,6 +898,11 @@ def get_pid_output(
     reference_effort = get_reference("reference_effort_commands")
     if reference_effort:
         reference_effort = max(min(reference_effort, max_effort), -max_effort)
+
+    # The current control considers the effort reference as a current reference
+    reference_current = get_reference("reference_effort_commands")
+    if reference_current:
+        reference_current = max(min(reference_current, max_current), -max_current)
 
     if control_mode == ControlMode.POSITION:
         if not script_state.state.position_pid_enabled:
@@ -1033,6 +1056,39 @@ def get_pid_output(
 
         return script_state.pids[joint_index][control_mode]
 
+    elif control_mode == ControlMode.CURRENT:
+        if not script_state.state.current_pid_enabled:
+            script_state.state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+            script_state.state.hf_messages[joint_index] = "Current PID not enabled."
+            return 0.0
+
+        if (
+            script_state.state.previous_control_modes[joint_index] != control_mode
+            or control_mode not in script_state.pids[joint_index]
+        ):
+            # For the current mode, we don't set a PID, but we set a dict
+            # with the reference current and the corresponding torque
+            script_state.pids[joint_index][control_mode] = {}
+            script_state.pids[joint_index][control_mode][
+                "reference"
+            ] = measured_motor_current
+        script_state.state.previous_control_modes[joint_index] = control_mode
+
+        current_dict = script_state.pids[joint_index][control_mode]
+        gearbox_ratio = script_state.state.gearbox_ratios[joint_index]
+        motor_torque_constant = script_state.state.motor_torque_constants[joint_index]
+        motor_stiffness = script_state.state.motor_spring_stiffness[joint_index]
+
+        if reference_current:
+            current_dict["reference"] = reference_current
+
+        output_current = current_dict["reference"]
+        sping_torque = motor_stiffness * measured_position
+        k_total = motor_torque_constant * gearbox_ratio
+        output_torque = output_current * k_total - sping_torque
+        current_dict["torque"] = output_torque
+        return output_torque
+
     elif control_mode == ControlMode.IDLE or control_mode == ControlMode.HARDWARE_FAULT:
         script_state.state.previous_control_modes[joint_index] = control_mode
         return 0.0
@@ -1061,6 +1117,7 @@ def update_state(db: og.Database):
         position_direct_pid = None
         velocity_pid = None
         torque_reference = None
+        current_dict = None
         if i in script_state.pids:
             position_pid = script_state.pids[i].get(ControlMode.POSITION, None)
             position_direct_pid = script_state.pids[i].get(
@@ -1068,6 +1125,7 @@ def update_state(db: og.Database):
             )
             velocity_pid = script_state.pids[i].get(ControlMode.VELOCITY, None)
             torque_reference = script_state.pids[i].get(ControlMode.TORQUE, None)
+            current_dict = script_state.pids[i].get(ControlMode.CURRENT, None)
 
         if position_pid:
             reference = position_pid.get_reference()
@@ -1104,6 +1162,10 @@ def update_state(db: og.Database):
         if torque_reference is not None:
             script_state.state.torque_pid_references[i] = torque_reference
             script_state.state.torque_pid_outputs[i] = torque_reference
+
+        if current_dict is not None:
+            script_state.state.current_pid_references[i] = current_dict["reference"]
+            script_state.state.current_pid_outputs[i] = current_dict["torque"]
 
 
 def reset_requested_pids(db: og.Database):
@@ -1249,10 +1311,22 @@ def compute(db: og.Database):
             max_velocity = float("inf")
             max_effort = float("inf")
 
+        max_current = (
+            script_state.state.motor_max_currents[i]
+            if script_state.state.motor_max_currents[i] > 0.0
+            else float("inf")
+        )
+
         if abs(measured_effort) > max_effort:
             script_state.state.control_modes[i] = ControlMode.HARDWARE_FAULT
             script_state.state.hf_messages[i] = (
                 f"Measured effort {measured_effort} exceeds max effort {max_effort}"
+            )
+
+        if abs(motor_current) > max_current:
+            script_state.state.control_modes[i] = ControlMode.HARDWARE_FAULT
+            script_state.state.hf_messages[i] = (
+                f"Measured motor current {motor_current} exceeds max current {max_current}"
             )
 
         effort = get_pid_output(
@@ -1261,10 +1335,12 @@ def compute(db: og.Database):
             measured_position=measured_position,
             measured_velocity=measured_velocity,
             measured_effort=measured_effort,
+            measured_motor_current=motor_current,
             lower_limit=lower_limit,
             upper_limit=upper_limit,
             max_velocity=max_velocity,
             max_effort=max_effort,
+            max_current=max_current,
         )
         effort = max(min(effort, max_effort), -max_effort)
         output_effort.append(effort)
@@ -1301,6 +1377,5 @@ def internal_state():
 
 
 # TODO:
-# Add current control mode
 # Add compliant mode
 #   Allow setting the impedance offset
