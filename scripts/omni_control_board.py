@@ -178,18 +178,21 @@ class ControlBoardState:
     position_pid_outputs: list[float]
     is_motion_done: list[bool]
     position_pid_enabled: list[bool]
+    position_pid_to_reset: list[bool]
 
     # Position Direct PID state
     position_direct_pid_references: list[float]
     position_direct_pid_errors: list[float]
     position_direct_pid_outputs: list[float]
     position_direct_pid_enabled: list[bool]
+    position_direct_pid_to_reset: list[bool]
 
     # Velocity PID state
     velocity_pid_references: list[float]
     velocity_pid_errors: list[float]
     velocity_pid_outputs: list[float]
     velocity_pid_enabled: list[bool]
+    velocity_pid_to_reset: list[bool]
 
     # Torque PID state
     torque_pid_references: list[float]
@@ -220,14 +223,17 @@ class ControlBoardState:
         self.position_pid_outputs = [float("nan")] * n_joints
         self.is_motion_done = [False] * n_joints
         self.position_pid_enabled = [True] * n_joints
+        self.position_pid_to_reset = [False] * n_joints
         self.position_direct_pid_references = [float("nan")] * n_joints
         self.position_direct_pid_errors = [float("nan")] * n_joints
         self.position_direct_pid_outputs = [float("nan")] * n_joints
         self.position_direct_pid_enabled = [True] * n_joints
+        self.position_direct_pid_to_reset = [False] * n_joints
         self.velocity_pid_references = [float("nan")] * n_joints
         self.velocity_pid_errors = [float("nan")] * n_joints
         self.velocity_pid_outputs = [float("nan")] * n_joints
         self.velocity_pid_enabled = [True] * n_joints
+        self.velocity_pid_to_reset = [False] * n_joints
         self.torque_pid_references = [float("nan")] * n_joints
         # Since we output directly the effort in torque mode, the error is always 0
         self.torque_pid_errors = [0.0] * n_joints
@@ -1053,6 +1059,51 @@ def update_state(db: og.Database):
             script_state.state.torque_pid_outputs[i] = torque_reference
 
 
+def reset_requested_pids(db: og.Database):
+    script_state = db.per_instance_state
+    if not script_state.initialized:
+        return
+
+    cb_state = script_state.state
+
+    for i in range(len(cb_state.joint_names)):
+        if cb_state.position_pid_to_reset[i]:
+            cb_state.position_p_gains[i] = settings.position_p_gains[i]
+            cb_state.position_i_gains[i] = settings.position_i_gains[i]
+            cb_state.position_d_gains[i] = settings.position_d_gains[i]
+            cb_state.position_max_integral[i] = settings.position_max_integral[i]
+            cb_state.position_max_output[i] = settings.position_max_output[i]
+            cb_state.position_max_error[i] = settings.position_max_error[i]
+            if i in script_state.pids and ControlMode.POSITION in script_state.pids[i]:
+                script_state.pids[i][ControlMode.POSITION].reset()
+            script_state.state.position_pid_to_reset[i] = False
+
+        if cb_state.position_direct_pid_to_reset[i]:
+            cb_state.position_p_gains[i] = settings.position_p_gains[i]
+            cb_state.position_i_gains[i] = settings.position_i_gains[i]
+            cb_state.position_d_gains[i] = settings.position_d_gains[i]
+            cb_state.position_max_integral[i] = settings.position_max_integral[i]
+            cb_state.position_max_output[i] = settings.position_max_output[i]
+            cb_state.position_max_error[i] = settings.position_max_error[i]
+            if (
+                i in script_state.pids
+                and ControlMode.POSITION_DIRECT in script_state.pids[i]
+            ):
+                script_state.pids[i][ControlMode.POSITION_DIRECT].reset()
+            script_state.state.position_direct_pid_to_reset[i] = False
+
+        if cb_state.velocity_pid_to_reset[i]:
+            cb_state.velocity_p_gains[i] = settings.velocity_p_gains[i]
+            cb_state.velocity_i_gains[i] = settings.velocity_i_gains[i]
+            cb_state.velocity_d_gains[i] = settings.velocity_d_gains[i]
+            cb_state.velocity_max_integral[i] = settings.velocity_max_integral[i]
+            cb_state.velocity_max_output[i] = settings.velocity_max_output[i]
+            cb_state.velocity_max_error[i] = settings.velocity_max_error[i]
+            if i in script_state.pids and ControlMode.VELOCITY in script_state.pids[i]:
+                script_state.pids[i][ControlMode.VELOCITY].reset()
+            script_state.state.velocity_pid_to_reset[i] = False
+
+
 def compute(db: og.Database):
     if (
         not hasattr(db.per_instance_state, "initialized")
@@ -1076,6 +1127,8 @@ def compute(db: og.Database):
 
     if rclpy.ok(context=script_state.context):
         script_state.executor.spin_once(timeout_sec=settings.node_timeout)
+
+    reset_requested_pids(db)
 
     output_effort = []
     positions = [0.0] * len(script_state.state.joint_names)
@@ -1158,5 +1211,4 @@ def internal_state():
 # Publish the motor state
 
 # TODO: missing info:
-# - reset pid
 # - stop position control
