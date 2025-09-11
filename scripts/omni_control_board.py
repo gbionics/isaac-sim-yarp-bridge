@@ -919,7 +919,7 @@ def get_pid_output(
                 max_integral=script_state.state.position_max_integral[joint_index],
                 max_output=script_state.state.position_max_output[joint_index],
                 max_error=script_state.state.position_max_error[joint_index],
-                default_velocity=settings.position_default_velocity,
+                default_velocity=script_state.state.settings.position_default_velocity,
             )
             pid = script_state.pids[joint_index][control_mode]
             pid.set_smoother(MinJerkTrajectoryGenerator())
@@ -968,7 +968,7 @@ def get_pid_output(
                 max_integral=script_state.state.position_max_integral[joint_index],
                 max_output=script_state.state.position_max_output[joint_index],
                 max_error=script_state.state.position_max_error[joint_index],
-                default_velocity=settings.position_default_velocity,
+                default_velocity=script_state.state.settings.position_default_velocity,
             )
             pid = script_state.pids[joint_index][control_mode]
         else:
@@ -1015,7 +1015,7 @@ def get_pid_output(
                 max_integral=script_state.state.velocity_max_integral[joint_index],
                 max_output=script_state.state.velocity_max_output[joint_index],
                 max_error=script_state.state.velocity_max_error[joint_index],
-                default_velocity=settings.position_default_velocity,  # Not used in velocity mode
+                default_velocity=script_state.state.settings.position_default_velocity,  # Not used in velocity mode
             )
             pid = script_state.pids[joint_index][control_mode]
         else:
@@ -1112,6 +1112,9 @@ def update_state(db: og.Database):
     if not script_state.initialized:
         return
 
+    # Note: the values are actually updated only if the joint is in the correct control
+    # mode and the PID is enabled
+
     for i in range(len(script_state.state.joint_names)):
         position_pid = None
         position_direct_pid = None
@@ -1174,26 +1177,27 @@ def reset_requested_pids(db: og.Database):
         return
 
     cb_state = script_state.state
+    original = cb_state.settings
 
     for i in range(len(cb_state.joint_names)):
         if cb_state.position_pid_to_reset[i]:
-            cb_state.position_p_gains[i] = settings.position_p_gains[i]
-            cb_state.position_i_gains[i] = settings.position_i_gains[i]
-            cb_state.position_d_gains[i] = settings.position_d_gains[i]
-            cb_state.position_max_integral[i] = settings.position_max_integral[i]
-            cb_state.position_max_output[i] = settings.position_max_output[i]
-            cb_state.position_max_error[i] = settings.position_max_error[i]
+            cb_state.position_p_gains[i] = original.position_p_gains[i]
+            cb_state.position_i_gains[i] = original.position_i_gains[i]
+            cb_state.position_d_gains[i] = original.position_d_gains[i]
+            cb_state.position_max_integral[i] = original.position_max_integral[i]
+            cb_state.position_max_output[i] = original.position_max_output[i]
+            cb_state.position_max_error[i] = original.position_max_error[i]
             if i in script_state.pids and ControlMode.POSITION in script_state.pids[i]:
                 script_state.pids[i][ControlMode.POSITION].reset()
             script_state.state.position_pid_to_reset[i] = False
 
         if cb_state.position_direct_pid_to_reset[i]:
-            cb_state.position_p_gains[i] = settings.position_p_gains[i]
-            cb_state.position_i_gains[i] = settings.position_i_gains[i]
-            cb_state.position_d_gains[i] = settings.position_d_gains[i]
-            cb_state.position_max_integral[i] = settings.position_max_integral[i]
-            cb_state.position_max_output[i] = settings.position_max_output[i]
-            cb_state.position_max_error[i] = settings.position_max_error[i]
+            cb_state.position_p_gains[i] = original.position_p_gains[i]
+            cb_state.position_i_gains[i] = original.position_i_gains[i]
+            cb_state.position_d_gains[i] = original.position_d_gains[i]
+            cb_state.position_max_integral[i] = original.position_max_integral[i]
+            cb_state.position_max_output[i] = original.position_max_output[i]
+            cb_state.position_max_error[i] = original.position_max_error[i]
             if (
                 i in script_state.pids
                 and ControlMode.POSITION_DIRECT in script_state.pids[i]
@@ -1202,12 +1206,12 @@ def reset_requested_pids(db: og.Database):
             script_state.state.position_direct_pid_to_reset[i] = False
 
         if cb_state.velocity_pid_to_reset[i]:
-            cb_state.velocity_p_gains[i] = settings.velocity_p_gains[i]
-            cb_state.velocity_i_gains[i] = settings.velocity_i_gains[i]
-            cb_state.velocity_d_gains[i] = settings.velocity_d_gains[i]
-            cb_state.velocity_max_integral[i] = settings.velocity_max_integral[i]
-            cb_state.velocity_max_output[i] = settings.velocity_max_output[i]
-            cb_state.velocity_max_error[i] = settings.velocity_max_error[i]
+            cb_state.velocity_p_gains[i] = original.velocity_p_gains[i]
+            cb_state.velocity_i_gains[i] = original.velocity_i_gains[i]
+            cb_state.velocity_d_gains[i] = original.velocity_d_gains[i]
+            cb_state.velocity_max_integral[i] = original.velocity_max_integral[i]
+            cb_state.velocity_max_output[i] = original.velocity_max_output[i]
+            cb_state.velocity_max_error[i] = original.velocity_max_error[i]
             if i in script_state.pids and ControlMode.VELOCITY in script_state.pids[i]:
                 script_state.pids[i][ControlMode.VELOCITY].reset()
             script_state.state.velocity_pid_to_reset[i] = False
@@ -1268,7 +1272,9 @@ def compute(db: og.Database):
         return False
 
     if rclpy.ok(context=script_state.context):
-        script_state.executor.spin_once(timeout_sec=settings.node_timeout)
+        script_state.executor.spin_once(
+            timeout_sec=script_state.state.settings.node_timeout
+        )
 
     reset_requested_pids(db)
 
