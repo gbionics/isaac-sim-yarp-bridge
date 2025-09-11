@@ -854,7 +854,8 @@ def get_pid_output(
     max_current: float,
 ) -> float:
     script_state = db.per_instance_state
-    name = script_state.state.joint_names[joint_index]
+    cb_state = script_state.state
+    name = cb_state.joint_names[joint_index]
     delta_time = (
         db.inputs.deltaTime
         if hasattr(db.inputs, "deltaTime") and db.inputs.deltaTime is not None
@@ -864,7 +865,7 @@ def get_pid_output(
     if joint_index not in script_state.pids:
         script_state.pids[joint_index] = {}
 
-    control_mode = script_state.state.control_modes[joint_index]
+    control_mode = cb_state.control_modes[joint_index]
 
     reference_names = (
         db.inputs.reference_joint_names
@@ -905,41 +906,41 @@ def get_pid_output(
         reference_current = max(min(reference_current, max_current), -max_current)
 
     if control_mode == ControlMode.POSITION:
-        if not script_state.state.position_pid_enabled:
-            script_state.state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
-            script_state.state.hf_messages[joint_index] = "Position PID not enabled."
+        if not cb_state.position_pid_enabled:
+            cb_state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+            cb_state.hf_messages[joint_index] = "Position PID not enabled."
             return 0.0
 
         pid = script_state.pids[joint_index].get(control_mode, None)
         if pid is None:
             script_state.pids[joint_index][control_mode] = ControlBoardPID(
-                p=script_state.state.position_p_gains[joint_index],
-                i=script_state.state.position_i_gains[joint_index],
-                d=script_state.state.position_d_gains[joint_index],
-                max_integral=script_state.state.position_max_integral[joint_index],
-                max_output=script_state.state.position_max_output[joint_index],
-                max_error=script_state.state.position_max_error[joint_index],
-                default_velocity=script_state.state.settings.position_default_velocity,
+                p=cb_state.position_p_gains[joint_index],
+                i=cb_state.position_i_gains[joint_index],
+                d=cb_state.position_d_gains[joint_index],
+                max_integral=cb_state.position_max_integral[joint_index],
+                max_output=cb_state.position_max_output[joint_index],
+                max_error=cb_state.position_max_error[joint_index],
+                default_velocity=cb_state.settings.position_default_velocity,
             )
             pid = script_state.pids[joint_index][control_mode]
             pid.set_smoother(MinJerkTrajectoryGenerator())
         else:
             pid.update_gains(
-                p=script_state.state.position_p_gains[joint_index],
-                i=script_state.state.position_i_gains[joint_index],
-                d=script_state.state.position_d_gains[joint_index],
-                max_integral=script_state.state.position_max_integral[joint_index],
-                max_output=script_state.state.position_max_output[joint_index],
-                max_error=script_state.state.position_max_error[joint_index],
+                p=cb_state.position_p_gains[joint_index],
+                i=cb_state.position_i_gains[joint_index],
+                d=cb_state.position_d_gains[joint_index],
+                max_integral=cb_state.position_max_integral[joint_index],
+                max_output=cb_state.position_max_output[joint_index],
+                max_error=cb_state.position_max_error[joint_index],
             )
 
-        if script_state.state.previous_control_modes[joint_index] != control_mode:
+        if cb_state.previous_control_modes[joint_index] != control_mode:
             pid.reset()
-        script_state.state.previous_control_modes[joint_index] = control_mode
+        cb_state.previous_control_modes[joint_index] = control_mode
 
-        if script_state.state.position_pid_to_stop[joint_index]:
+        if cb_state.position_pid_to_stop[joint_index]:
             pid.smoother.abort_trajectory(measured_position)
-            script_state.state.position_pid_to_stop[joint_index] = False
+            cb_state.position_pid_to_stop[joint_index] = False
 
         elif reference_position:
             ref_vel = (
@@ -952,41 +953,39 @@ def get_pid_output(
         return pid.compute(delta_time, measured_position)
 
     elif control_mode == ControlMode.POSITION_DIRECT:
-        if not script_state.state.position_direct_pid_enabled:
-            script_state.state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
-            script_state.state.hf_messages[joint_index] = (
-                "Position Direct PID not enabled."
-            )
+        if not cb_state.position_direct_pid_enabled:
+            cb_state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+            cb_state.hf_messages[joint_index] = "Position Direct PID not enabled."
             return 0.0
 
         pid = script_state.pids[joint_index].get(control_mode, None)
         if pid is None:
             script_state.pids[joint_index][control_mode] = ControlBoardPID(
-                p=script_state.state.position_p_gains[joint_index],
-                i=script_state.state.position_i_gains[joint_index],
-                d=script_state.state.position_d_gains[joint_index],
-                max_integral=script_state.state.position_max_integral[joint_index],
-                max_output=script_state.state.position_max_output[joint_index],
-                max_error=script_state.state.position_max_error[joint_index],
-                default_velocity=script_state.state.settings.position_default_velocity,
+                p=cb_state.position_p_gains[joint_index],
+                i=cb_state.position_i_gains[joint_index],
+                d=cb_state.position_d_gains[joint_index],
+                max_integral=cb_state.position_max_integral[joint_index],
+                max_output=cb_state.position_max_output[joint_index],
+                max_error=cb_state.position_max_error[joint_index],
+                default_velocity=cb_state.settings.position_default_velocity,
             )
             pid = script_state.pids[joint_index][control_mode]
         else:
             pid.update_gains(
-                p=script_state.state.position_p_gains[joint_index],
-                i=script_state.state.position_i_gains[joint_index],
-                d=script_state.state.position_d_gains[joint_index],
-                max_integral=script_state.state.position_max_integral[joint_index],
-                max_output=script_state.state.position_max_output[joint_index],
-                max_error=script_state.state.position_max_error[joint_index],
+                p=cb_state.position_p_gains[joint_index],
+                i=cb_state.position_i_gains[joint_index],
+                d=cb_state.position_d_gains[joint_index],
+                max_integral=cb_state.position_max_integral[joint_index],
+                max_output=cb_state.position_max_output[joint_index],
+                max_error=cb_state.position_max_error[joint_index],
             )
 
         if control_mode == ControlMode.POSITION and pid.smoother is None:
             pid.set_smoother(MinJerkTrajectoryGenerator())
 
-        if script_state.state.previous_control_modes[joint_index] != control_mode:
+        if cb_state.previous_control_modes[joint_index] != control_mode:
             pid.reset()
-        script_state.state.previous_control_modes[joint_index] = control_mode
+        cb_state.previous_control_modes[joint_index] = control_mode
 
         if reference_position:
             ref_vel = (
@@ -1001,36 +1000,36 @@ def get_pid_output(
         return pid.compute(delta_time, measured_position)
 
     elif control_mode == ControlMode.VELOCITY:
-        if not script_state.state.velocity_pid_enabled:
-            script_state.state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
-            script_state.state.hf_messages[joint_index] = "Velocity PID not enabled."
+        if not cb_state.velocity_pid_enabled:
+            cb_state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+            cb_state.hf_messages[joint_index] = "Velocity PID not enabled."
             return 0.0
 
         pid = script_state.pids[joint_index].get(control_mode, None)
         if pid is None:
             script_state.pids[joint_index][control_mode] = ControlBoardPID(
-                p=script_state.state.velocity_p_gains[joint_index],
-                i=script_state.state.velocity_i_gains[joint_index],
-                d=script_state.state.velocity_d_gains[joint_index],
-                max_integral=script_state.state.velocity_max_integral[joint_index],
-                max_output=script_state.state.velocity_max_output[joint_index],
-                max_error=script_state.state.velocity_max_error[joint_index],
-                default_velocity=script_state.state.settings.position_default_velocity,  # Not used in velocity mode
+                p=cb_state.velocity_p_gains[joint_index],
+                i=cb_state.velocity_i_gains[joint_index],
+                d=cb_state.velocity_d_gains[joint_index],
+                max_integral=cb_state.velocity_max_integral[joint_index],
+                max_output=cb_state.velocity_max_output[joint_index],
+                max_error=cb_state.velocity_max_error[joint_index],
+                default_velocity=cb_state.settings.position_default_velocity,  # Not used in velocity mode
             )
             pid = script_state.pids[joint_index][control_mode]
         else:
             pid.update_gains(
-                p=script_state.state.velocity_p_gains[joint_index],
-                i=script_state.state.velocity_i_gains[joint_index],
-                d=script_state.state.velocity_d_gains[joint_index],
-                max_integral=script_state.state.velocity_max_integral[joint_index],
-                max_output=script_state.state.velocity_max_output[joint_index],
-                max_error=script_state.state.velocity_max_error[joint_index],
+                p=cb_state.velocity_p_gains[joint_index],
+                i=cb_state.velocity_i_gains[joint_index],
+                d=cb_state.velocity_d_gains[joint_index],
+                max_integral=cb_state.velocity_max_integral[joint_index],
+                max_output=cb_state.velocity_max_output[joint_index],
+                max_error=cb_state.velocity_max_error[joint_index],
             )
 
-        if script_state.state.previous_control_modes[joint_index] != control_mode:
+        if cb_state.previous_control_modes[joint_index] != control_mode:
             pid.reset()
-        script_state.state.previous_control_modes[joint_index] = control_mode
+        cb_state.previous_control_modes[joint_index] = control_mode
 
         if reference_velocity:
             pid.set_reference(reference_velocity)
@@ -1038,18 +1037,18 @@ def get_pid_output(
         return pid.compute(delta_time, measured_velocity)
 
     elif control_mode == ControlMode.TORQUE:
-        if not script_state.state.torque_pid_enabled:
-            script_state.state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
-            script_state.state.hf_messages[joint_index] = "Torque PID not enabled."
+        if not cb_state.torque_pid_enabled:
+            cb_state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+            cb_state.hf_messages[joint_index] = "Torque PID not enabled."
             return 0.0
 
         if (
-            script_state.state.previous_control_modes[joint_index] != control_mode
+            cb_state.previous_control_modes[joint_index] != control_mode
             or control_mode not in script_state.pids[joint_index]
         ):
             # For the torque mode, we don't set a PID, but we just store the reference
             script_state.pids[joint_index][control_mode] = measured_effort
-        script_state.state.previous_control_modes[joint_index] = control_mode
+        cb_state.previous_control_modes[joint_index] = control_mode
 
         if reference_effort:
             script_state.pids[joint_index][control_mode] = reference_effort
@@ -1057,13 +1056,13 @@ def get_pid_output(
         return script_state.pids[joint_index][control_mode]
 
     elif control_mode == ControlMode.CURRENT:
-        if not script_state.state.current_pid_enabled:
-            script_state.state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
-            script_state.state.hf_messages[joint_index] = "Current PID not enabled."
+        if not cb_state.current_pid_enabled:
+            cb_state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+            cb_state.hf_messages[joint_index] = "Current PID not enabled."
             return 0.0
 
         if (
-            script_state.state.previous_control_modes[joint_index] != control_mode
+            cb_state.previous_control_modes[joint_index] != control_mode
             or control_mode not in script_state.pids[joint_index]
         ):
             # For the current mode, we don't set a PID, but we set a dict
@@ -1072,12 +1071,12 @@ def get_pid_output(
             script_state.pids[joint_index][control_mode][
                 "reference"
             ] = measured_motor_current
-        script_state.state.previous_control_modes[joint_index] = control_mode
+        cb_state.previous_control_modes[joint_index] = control_mode
 
         current_dict = script_state.pids[joint_index][control_mode]
-        gearbox_ratio = script_state.state.gearbox_ratios[joint_index]
-        motor_torque_constant = script_state.state.motor_torque_constants[joint_index]
-        motor_stiffness = script_state.state.motor_spring_stiffness[joint_index]
+        gearbox_ratio = cb_state.gearbox_ratios[joint_index]
+        motor_torque_constant = cb_state.motor_torque_constants[joint_index]
+        motor_stiffness = cb_state.motor_spring_stiffness[joint_index]
 
         if reference_current:
             current_dict["reference"] = reference_current
@@ -1090,19 +1089,15 @@ def get_pid_output(
         return output_torque
 
     elif control_mode == ControlMode.IDLE or control_mode == ControlMode.HARDWARE_FAULT:
-        script_state.state.previous_control_modes[joint_index] = control_mode
+        cb_state.previous_control_modes[joint_index] = control_mode
         return 0.0
     else:
-        script_state.state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
-        script_state.state.previous_control_modes[joint_index] = (
-            ControlMode.HARDWARE_FAULT
-        )
-        script_state.state.hf_messages[joint_index] = (
-            f"Unsupported control mode {control_mode}"
-        )
+        cb_state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+        cb_state.previous_control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+        cb_state.hf_messages[joint_index] = f"Unsupported control mode {control_mode}"
         db.log_error(
             f"Unsupported control mode {control_mode} "
-            f"for joint {script_state.state.joint_names[joint_index]}"
+            f"for joint {cb_state.joint_names[joint_index]}"
         )
         return 0.0
 
@@ -1111,11 +1106,12 @@ def update_state(db: og.Database):
     script_state = db.per_instance_state
     if not script_state.initialized:
         return
+    cb_state = script_state.state
 
     # Note: the values are actually updated only if the joint is in the correct control
     # mode and the PID is enabled
 
-    for i in range(len(script_state.state.joint_names)):
+    for i in range(len(cb_state.joint_names)):
         position_pid = None
         position_direct_pid = None
         velocity_pid = None
@@ -1133,42 +1129,36 @@ def update_state(db: og.Database):
         if position_pid:
             reference = position_pid.get_reference()
             if reference:
-                script_state.state.position_pid_references[i] = reference
+                cb_state.position_pid_references[i] = reference
 
-            script_state.state.position_pid_errors[i] = position_pid.get_error()
-            script_state.state.position_pid_outputs[i] = position_pid.get_output()
+            cb_state.position_pid_errors[i] = position_pid.get_error()
+            cb_state.position_pid_outputs[i] = position_pid.get_output()
             if position_pid.smoother:
-                script_state.state.is_motion_done[i] = (
-                    position_pid.smoother.trajectory_completed
-                )
+                cb_state.is_motion_done[i] = position_pid.smoother.trajectory_completed
 
         if position_direct_pid:
             reference = position_direct_pid.get_reference()
             if reference:
-                script_state.state.position_direct_pid_references[i] = reference
+                cb_state.position_direct_pid_references[i] = reference
 
-            script_state.state.position_direct_pid_errors[i] = (
-                position_direct_pid.get_error()
-            )
-            script_state.state.position_direct_pid_outputs[i] = (
-                position_direct_pid.get_output()
-            )
+            cb_state.position_direct_pid_errors[i] = position_direct_pid.get_error()
+            cb_state.position_direct_pid_outputs[i] = position_direct_pid.get_output()
 
         if velocity_pid:
             reference = velocity_pid.get_reference()
             if reference:
-                script_state.state.velocity_pid_references[i] = reference
+                cb_state.velocity_pid_references[i] = reference
 
-            script_state.state.velocity_pid_errors[i] = velocity_pid.get_error()
-            script_state.state.velocity_pid_outputs[i] = velocity_pid.get_output()
+            cb_state.velocity_pid_errors[i] = velocity_pid.get_error()
+            cb_state.velocity_pid_outputs[i] = velocity_pid.get_output()
 
         if torque_reference is not None:
-            script_state.state.torque_pid_references[i] = torque_reference
-            script_state.state.torque_pid_outputs[i] = torque_reference
+            cb_state.torque_pid_references[i] = torque_reference
+            cb_state.torque_pid_outputs[i] = torque_reference
 
         if current_dict is not None:
-            script_state.state.current_pid_references[i] = current_dict["reference"]
-            script_state.state.current_pid_outputs[i] = current_dict["torque"]
+            cb_state.current_pid_references[i] = current_dict["reference"]
+            cb_state.current_pid_outputs[i] = current_dict["torque"]
 
 
 def reset_requested_pids(db: og.Database):
@@ -1189,7 +1179,7 @@ def reset_requested_pids(db: og.Database):
             cb_state.position_max_error[i] = original.position_max_error[i]
             if i in script_state.pids and ControlMode.POSITION in script_state.pids[i]:
                 script_state.pids[i][ControlMode.POSITION].reset()
-            script_state.state.position_pid_to_reset[i] = False
+            cb_state.position_pid_to_reset[i] = False
 
         if cb_state.position_direct_pid_to_reset[i]:
             cb_state.position_p_gains[i] = original.position_p_gains[i]
@@ -1203,7 +1193,7 @@ def reset_requested_pids(db: og.Database):
                 and ControlMode.POSITION_DIRECT in script_state.pids[i]
             ):
                 script_state.pids[i][ControlMode.POSITION_DIRECT].reset()
-            script_state.state.position_direct_pid_to_reset[i] = False
+            cb_state.position_direct_pid_to_reset[i] = False
 
         if cb_state.velocity_pid_to_reset[i]:
             cb_state.velocity_p_gains[i] = original.velocity_p_gains[i]
@@ -1214,22 +1204,23 @@ def reset_requested_pids(db: og.Database):
             cb_state.velocity_max_error[i] = original.velocity_max_error[i]
             if i in script_state.pids and ControlMode.VELOCITY in script_state.pids[i]:
                 script_state.pids[i][ControlMode.VELOCITY].reset()
-            script_state.state.velocity_pid_to_reset[i] = False
+            cb_state.velocity_pid_to_reset[i] = False
 
 
 def compute_motor_state(
     db: og.Database, joint_index, joint_position, joint_velocity, joint_effort
 ):
     script_state = db.per_instance_state
+    cb_state = script_state.state
+    gearbox_ratio = cb_state.gearbox_ratios[joint_index]
 
     def compute_motor_current() -> float:
 
-        gearbox_ratio = script_state.state.gearbox_ratios[joint_index]
-        motor_torque_constant = script_state.state.motor_torque_constants[joint_index]
-        motor_stiffness = script_state.state.motor_spring_stiffness[joint_index]
+        motor_torque_constant = cb_state.motor_torque_constants[joint_index]
+        motor_stiffness = cb_state.motor_spring_stiffness[joint_index]
 
         # Add a Gaussian noise to the motor current
-        noise_variance = script_state.state.motor_current_noise_variance[joint_index]
+        noise_variance = cb_state.motor_current_noise_variance[joint_index]
         if noise_variance <= 0:
             additive_noise = 0.0
         else:
@@ -1245,8 +1236,8 @@ def compute_motor_state(
         motor_current = simulated_effort / k_total + additive_noise
         return motor_current
 
-    motor_position = joint_position * script_state.state.gearbox_ratios[joint_index]
-    motor_velocity = joint_velocity * script_state.state.gearbox_ratios[joint_index]
+    motor_position = joint_position * gearbox_ratio
+    motor_velocity = joint_velocity * gearbox_ratio
     return motor_position, motor_velocity, compute_motor_current()
 
 
@@ -1261,6 +1252,7 @@ def compute(db: og.Database):
         return False
 
     script_state = db.per_instance_state
+    cb_state = script_state.state
 
     joint_state = script_state.robot.get_joints_state()
     if joint_state is None:
@@ -1272,20 +1264,18 @@ def compute(db: og.Database):
         return False
 
     if rclpy.ok(context=script_state.context):
-        script_state.executor.spin_once(
-            timeout_sec=script_state.state.settings.node_timeout
-        )
+        script_state.executor.spin_once(timeout_sec=cb_state.settings.node_timeout)
 
     reset_requested_pids(db)
 
     output_effort = []
-    positions = [0.0] * len(script_state.state.joint_names)
-    velocities = [0.0] * len(script_state.state.joint_names)
-    efforts = [0.0] * len(script_state.state.joint_names)
-    motor_positions = [0.0] * len(script_state.state.joint_names)
-    motor_velocities = [0.0] * len(script_state.state.joint_names)
-    motor_currents = [0.0] * len(script_state.state.joint_names)
-    for i in range(len(script_state.state.joint_names)):
+    positions = [0.0] * len(cb_state.joint_names)
+    velocities = [0.0] * len(cb_state.joint_names)
+    efforts = [0.0] * len(cb_state.joint_names)
+    motor_positions = [0.0] * len(cb_state.joint_names)
+    motor_velocities = [0.0] * len(cb_state.joint_names)
+    motor_currents = [0.0] * len(cb_state.joint_names)
+    for i in range(len(cb_state.joint_names)):
         robot_index = script_state.robot_joint_indices[i]
 
         measured_position = joint_state.positions[robot_index]
@@ -1318,20 +1308,20 @@ def compute(db: og.Database):
             max_effort = float("inf")
 
         max_current = (
-            script_state.state.motor_max_currents[i]
-            if script_state.state.motor_max_currents[i] > 0.0
+            cb_state.motor_max_currents[i]
+            if cb_state.motor_max_currents[i] > 0.0
             else float("inf")
         )
 
         if abs(measured_effort) > max_effort:
-            script_state.state.control_modes[i] = ControlMode.HARDWARE_FAULT
-            script_state.state.hf_messages[i] = (
+            cb_state.control_modes[i] = ControlMode.HARDWARE_FAULT
+            cb_state.hf_messages[i] = (
                 f"Measured effort {measured_effort} exceeds max effort {max_effort}"
             )
 
         if abs(motor_current) > max_current:
-            script_state.state.control_modes[i] = ControlMode.HARDWARE_FAULT
-            script_state.state.hf_messages[i] = (
+            cb_state.control_modes[i] = ControlMode.HARDWARE_FAULT
+            cb_state.hf_messages[i] = (
                 f"Measured motor current {motor_current} exceeds max current {max_current}"
             )
 
