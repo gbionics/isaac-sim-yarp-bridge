@@ -10,16 +10,41 @@
 #                    Use db.log_error, db.log_warning to report problems in the compute function.
 #    og: The omni.graph.core module
 
-# Expects eight inputs:
+# Expects 34 inputs:
 # - timestamp [float]: The current simulation time (in seconds)
 # - deltaTime [float]: Time passed since last compute (in seconds)
 # - reference_joint_names [list[str]]: The list of joint names for the input reference commands.
 # - reference_position_commands [list[float]]: The list of joint position commands.
 # - reference_velocity_commands [list[float]]: The list of joint velocity commands.
 # - reference_effort_commands [list[float]]: The list of joint effort commands.
-# - robot_prim [target]: The robot prim
-# - domain_id [int]: The ROS2 domain ID (optional)
-# - useDomainIDEnvVar [bool]: Define whether to get the domain ID from an env var or not (optional)
+# - robot_prim [target]: The robot prim. Read only during setup.
+# - domain_id [int]: The ROS2 domain ID (optional). Read only during setup.
+# - useDomainIDEnvVar [bool]: Define whether to get the domain ID from an env var or not (optional). Read only during setup.
+# - node_name [str]: The ROS2 node name. Read only during setup.
+# - node_set_parameters_service_name [str]: The ROS2 set parameters service name. Read only during setup.
+# - node_get_parameters_service_name [str]: The ROS2 get parameters service name. Read only during setup.
+# - node_state_topic_name [str]: The ROS2 joint state topic name. Read only during setup.
+# - node_motor_state_topic_name [str]: The ROS2 motor state topic name. Read only during setup.
+# - node_timeout [float]: The ROS2 node timeout (in seconds). Read only during setup.
+# - joint_names [list[str]]: The list of joint names. Read only during setup.
+# - position_p_gains [list[float]]: The list of position PID proportional gains. Read only during setup.
+# - position_i_gains [list[float]]: The list of position PID integral gains. Read only during setup.
+# - position_d_gains [list[float]]: The list of position PID derivative gains. Read only during setup.
+# - position_max_integral [list[float]]: The list of position PID maximum integral terms. Read only during setup.
+# - position_max_output [list[float]]: The list of position PID maximum output terms. Read only during setup.
+# - position_max_error [list[float]]: The list of position PID maximum error terms. Read only during setup.
+# - position_default_velocity [float]: The default velocity used to smooth position commands. Read only during setup.
+# - velocity_p_gains [list[float]]: The list of velocity PID proportional gains. Read only during setup.
+# - velocity_i_gains [list[float]]: The list of velocity PID integral gains. Read only during setup.
+# - velocity_d_gains [list[float]]: The list of velocity PID derivative gains. Read only during setup.
+# - velocity_max_integral [list[float]]: The list of velocity PID maximum integral terms. Read only during setup.
+# - velocity_max_output [list[float]]: The list of velocity PID maximum output terms. Read only during setup.
+# - velocity_max_error [list[float]]: The list of velocity PID maximum error terms. Read only during setup.
+# - gearbox_ratios [list[float]]: The list of gearbox ratios (motor to joint). Read only during setup.
+# - motor_torque_constants [list[float]]: The list of motor torque constants. Read only during setup.
+# - motor_current_noise_variance [list[float]]: The list of motor current noise variances. Read only during setup.
+# - motor_spring_stiffness [list[float]]: The list of motor springs stiffness. Read only during setup.
+# - motor_max_currents [list[float]]: The list of motor maximum currents. Read only during setup.
 
 import dataclasses
 import enum
@@ -39,8 +64,11 @@ from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node as ROS2Node
 from sensor_msgs.msg import JointState
 
+# TODO:
+# Add compliant mode
+#   Allow setting the impedance offset. The effort command can be used, since it is not used in position or velocity mode.
 
-# TODO: these might be inputs, eventually added automatically if they are not existing
+
 @dataclasses.dataclass
 class ControlBoardSettings:
     # Node settings
@@ -73,88 +101,6 @@ class ControlBoardSettings:
     motor_current_noise_variance: list[float]
     motor_spring_stiffness: list[float]
     motor_max_currents: list[float]
-
-
-# TODO: change this
-settings = ControlBoardSettings(
-    node_name="isaac_sim_control_board",
-    node_set_parameters_service_name="ergocub/controlboard/set_parameters",
-    node_get_parameters_service_name="ergocub/controlboard/get_parameters",
-    node_state_topic_name="ergocub/controlboard/joint_state",
-    node_motor_state_topic_name="ergocub/controlboard/motor_state",
-    node_timeout=0.1,
-    joint_names=[
-        "camera_tilt",
-        "neck_pitch",
-        "neck_roll",
-        "neck_yaw",
-        "torso_pitch",
-        "torso_roll",
-        "torso_yaw",
-        "l_shoulder_pitch",
-        "l_shoulder_roll",
-        "l_shoulder_yaw",
-        "l_elbow",
-        "l_thumb_add",
-        "l_thumb_prox",
-        "l_thumb_dist",
-        "l_index_add",
-        "l_index_prox",
-        "l_index_dist",
-        "l_middle_prox",
-        "l_middle_dist",
-        "l_ring_prox",
-        "l_ring_dist",
-        "l_pinkie_prox",
-        "l_pinkie_dist",
-        "r_shoulder_pitch",
-        "r_shoulder_roll",
-        "r_shoulder_yaw",
-        "r_elbow",
-        "r_thumb_add",
-        "r_thumb_prox",
-        "r_thumb_dist",
-        "r_index_add",
-        "r_index_prox",
-        "r_index_dist",
-        "r_middle_prox",
-        "r_middle_dist",
-        "r_ring_prox",
-        "r_ring_dist",
-        "r_pinkie_prox",
-        "r_pinkie_dist",
-        "l_hip_pitch",
-        "l_hip_roll",
-        "l_hip_yaw",
-        "l_knee",
-        "l_ankle_pitch",
-        "l_ankle_roll",
-        "r_hip_pitch",
-        "r_hip_roll",
-        "r_hip_yaw",
-        "r_knee",
-        "r_ankle_pitch",
-        "r_ankle_roll",
-    ],
-    position_p_gains=[100.0] * 51,
-    position_i_gains=[1.0] * 51,
-    position_d_gains=[20.0] * 51,
-    position_max_integral=[10.0] * 51,
-    position_max_output=[100.0] * 51,
-    position_default_velocity=10.0 / 180.0 * math.pi,  # rad/s
-    position_max_error=[math.pi] * 51,
-    velocity_p_gains=[1.0] * 51,
-    velocity_i_gains=[0.0] * 51,
-    velocity_d_gains=[0.0] * 51,
-    velocity_max_integral=[0.0] * 51,
-    velocity_max_output=[100.0] * 51,
-    velocity_max_error=[math.pi] * 51,
-    gearbox_ratios=[1.0] * 51,
-    motor_torque_constants=[1.0] * 51,
-    motor_current_noise_variance=[0.0] * 51,
-    motor_spring_stiffness=[0.0] * 51,
-    motor_max_currents=[100.0] * 51,
-)
 
 
 class ControlMode(enum.IntEnum):
@@ -233,24 +179,24 @@ class ControlBoardState:
     motor_spring_stiffness: list[float]
     motor_max_currents: list[float]
 
-    def __init__(self, s: ControlBoardSettings):
-        self.joint_names = s.joint_names
+    def __init__(self, settings: ControlBoardSettings):
+        self.joint_names = settings.joint_names
         n_joints = len(self.joint_names)
         self.control_modes = [ControlMode.POSITION] * n_joints
         self.previous_control_modes = [ControlMode.POSITION] * n_joints
         self.hf_messages = [""] * n_joints
-        self.position_p_gains = s.position_p_gains
-        self.position_i_gains = s.position_i_gains
-        self.position_d_gains = s.position_d_gains
-        self.position_max_integral = s.position_max_integral
-        self.position_max_output = s.position_max_output
-        self.position_max_error = s.position_max_error
-        self.velocity_p_gains = s.velocity_p_gains
-        self.velocity_i_gains = s.velocity_i_gains
-        self.velocity_d_gains = s.velocity_d_gains
-        self.velocity_max_integral = s.velocity_max_integral
-        self.velocity_max_output = s.velocity_max_output
-        self.velocity_max_error = s.velocity_max_error
+        self.position_p_gains = settings.position_p_gains
+        self.position_i_gains = settings.position_i_gains
+        self.position_d_gains = settings.position_d_gains
+        self.position_max_integral = settings.position_max_integral
+        self.position_max_output = settings.position_max_output
+        self.position_max_error = settings.position_max_error
+        self.velocity_p_gains = settings.velocity_p_gains
+        self.velocity_i_gains = settings.velocity_i_gains
+        self.velocity_d_gains = settings.velocity_d_gains
+        self.velocity_max_integral = settings.velocity_max_integral
+        self.velocity_max_output = settings.velocity_max_output
+        self.velocity_max_error = settings.velocity_max_error
         self.position_pid_references = [float("nan")] * n_joints
         self.position_pid_errors = [float("nan")] * n_joints
         self.position_pid_outputs = [float("nan")] * n_joints
@@ -278,12 +224,12 @@ class ControlBoardState:
         self.current_pid_errors = [0.0] * n_joints
         self.current_pid_outputs = [float("nan")] * n_joints
         self.current_pid_enabled = [True] * n_joints
-        self.gearbox_ratios = s.gearbox_ratios
-        self.motor_torque_constants = s.motor_torque_constants
-        self.motor_current_noise_variance = s.motor_current_noise_variance
-        self.motor_spring_stiffness = s.motor_spring_stiffness
-        self.motor_max_currents = s.motor_max_currents
-        self.settings = s
+        self.gearbox_ratios = settings.gearbox_ratios
+        self.motor_torque_constants = settings.motor_torque_constants
+        self.motor_current_noise_variance = settings.motor_current_noise_variance
+        self.motor_spring_stiffness = settings.motor_spring_stiffness
+        self.motor_max_currents = settings.motor_max_currents
+        self.settings = settings
 
 
 class ControlBoardNode(ROS2Node):
@@ -765,6 +711,59 @@ def choose_domain_id(db) -> int:
     return int(domain_id_input)
 
 
+def fill_settings_from_db(db: og.Database) -> ControlBoardSettings:
+    s = ControlBoardSettings(
+        node_name=db.inputs.node_name,
+        node_set_parameters_service_name=db.inputs.node_set_parameters_service_name,
+        node_get_parameters_service_name=db.inputs.node_get_parameters_service_name,
+        node_state_topic_name=db.inputs.node_state_topic_name,
+        node_motor_state_topic_name=db.inputs.node_motor_state_topic_name,
+        node_timeout=db.inputs.node_timeout,
+        joint_names=db.inputs.joint_names,
+        position_p_gains=db.inputs.position_p_gains,
+        position_i_gains=db.inputs.position_i_gains,
+        position_d_gains=db.inputs.position_d_gains,
+        position_max_integral=db.inputs.position_max_integral,
+        position_max_output=db.inputs.position_max_output,
+        position_max_error=db.inputs.position_max_error,
+        position_default_velocity=db.inputs.position_default_velocity,
+        velocity_p_gains=db.inputs.velocity_p_gains,
+        velocity_i_gains=db.inputs.velocity_i_gains,
+        velocity_d_gains=db.inputs.velocity_d_gains,
+        velocity_max_integral=db.inputs.velocity_max_integral,
+        velocity_max_output=db.inputs.velocity_max_output,
+        velocity_max_error=db.inputs.velocity_max_error,
+        gearbox_ratios=db.inputs.gearbox_ratios,
+        motor_torque_constants=db.inputs.motor_torque_constants,
+        motor_current_noise_variance=db.inputs.motor_current_noise_variance,
+        motor_spring_stiffness=db.inputs.motor_spring_stiffness,
+        motor_max_currents=db.inputs.motor_max_currents,
+    )
+    n_joints = len(s.joint_names)
+    if not (
+        len(s.position_p_gains)
+        == len(s.position_i_gains)
+        == len(s.position_d_gains)
+        == len(s.position_max_integral)
+        == len(s.position_max_output)
+        == len(s.position_max_error)
+        == len(s.velocity_p_gains)
+        == len(s.velocity_i_gains)
+        == len(s.velocity_d_gains)
+        == len(s.velocity_max_integral)
+        == len(s.velocity_max_output)
+        == len(s.velocity_max_error)
+        == len(s.gearbox_ratios)
+        == len(s.motor_torque_constants)
+        == len(s.motor_current_noise_variance)
+        == len(s.motor_spring_stiffness)
+        == len(s.motor_max_currents)
+        == n_joints
+    ):
+        db.log_error("Input joint parameter lists must have the same length")
+    return s
+
+
 def create_robot_object(db: og.Database, name, joint_names):
     if not hasattr(db.inputs, "robot_prim") or db.inputs.robot_prim is None:
         db.log_error("robot_prim input is not set")
@@ -795,7 +794,8 @@ def create_robot_object(db: og.Database, name, joint_names):
 
 def setup(db: og.Database):
     domain_id = choose_domain_id(db=db)
-    db.per_instance_state.state = ControlBoardState(s=settings)
+    settings = fill_settings_from_db(db=db)
+    db.per_instance_state.state = ControlBoardState(settings=settings)
     db.per_instance_state.pids = {}
     db.per_instance_state.context = ROS2Context()
     db.per_instance_state.context.init(domain_id=domain_id)
@@ -1380,8 +1380,3 @@ def compute(db: og.Database):
 
 def internal_state():
     return ControlBoardData()
-
-
-# TODO:
-# Add compliant mode
-#   Allow setting the impedance offset
