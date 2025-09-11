@@ -177,21 +177,25 @@ class ControlBoardState:
     position_pid_errors: list[float]
     position_pid_outputs: list[float]
     is_motion_done: list[bool]
+    position_pid_enabled: list[bool]
 
     # Position Direct PID state
     position_direct_pid_references: list[float]
     position_direct_pid_errors: list[float]
     position_direct_pid_outputs: list[float]
+    position_direct_pid_enabled: list[bool]
 
     # Velocity PID state
     velocity_pid_references: list[float]
     velocity_pid_errors: list[float]
     velocity_pid_outputs: list[float]
+    velocity_pid_enabled: list[bool]
 
     # Torque PID state
     torque_pid_references: list[float]
     torque_pid_errors: list[float]
     torque_pid_outputs: list[float]
+    torque_pid_enabled: list[bool]
 
     def __init__(self, s: ControlBoardSettings):
         self.joint_names = s.joint_names
@@ -215,16 +219,20 @@ class ControlBoardState:
         self.position_pid_errors = [float("nan")] * n_joints
         self.position_pid_outputs = [float("nan")] * n_joints
         self.is_motion_done = [False] * n_joints
+        self.position_pid_enabled = [True] * n_joints
         self.position_direct_pid_references = [float("nan")] * n_joints
         self.position_direct_pid_errors = [float("nan")] * n_joints
         self.position_direct_pid_outputs = [float("nan")] * n_joints
+        self.position_direct_pid_enabled = [True] * n_joints
         self.velocity_pid_references = [float("nan")] * n_joints
         self.velocity_pid_errors = [float("nan")] * n_joints
         self.velocity_pid_outputs = [float("nan")] * n_joints
+        self.velocity_pid_enabled = [True] * n_joints
         self.torque_pid_references = [float("nan")] * n_joints
         # Since we output directly the effort in torque mode, the error is always 0
         self.torque_pid_errors = [0.0] * n_joints
         self.torque_pid_outputs = [float("nan")] * n_joints
+        self.torque_pid_enabled = [True] * n_joints
         self.settings = s
 
 
@@ -291,7 +299,9 @@ class ControlBoardNode(ROS2Node):
 
         if hasattr(self.state, name) and len(getattr(self.state, name)) > 0:
             vec = getattr(self.state, name)
-            if all(isinstance(v, int) for v in vec):
+            if len(vec) == 0:
+                output.type = ParameterType.PARAMETER_NOT_SET
+            elif all(isinstance(v, int) for v in vec):
                 output.type = ParameterType.PARAMETER_INTEGER_ARRAY
                 output.integer_array_value = getattr(self.state, name)
             elif all(isinstance(v, float) for v in vec):
@@ -300,6 +310,9 @@ class ControlBoardNode(ROS2Node):
             elif all(isinstance(v, str) for v in vec):
                 output.type = ParameterType.PARAMETER_STRING_ARRAY
                 output.string_array_value = getattr(self.state, name)
+            elif all(isinstance(v, bool) for v in vec):
+                output.type = ParameterType.PARAMETER_BOOL_ARRAY
+                output.bool_array_value = getattr(self.state, name)
             else:
                 output.type = ParameterType.PARAMETER_NOT_SET
                 print(
@@ -324,11 +337,20 @@ class ControlBoardNode(ROS2Node):
                 elif isinstance(v, str):
                     output.type = ParameterType.PARAMETER_STRING
                     output.string_value = v
+                elif isinstance(v, bool):
+                    output.type = ParameterType.PARAMETER_BOOL
+                    output.bool_value = v
                 else:
                     print(
                         f"Unsupported type for parameter {name}[{index}]: {type(v)}. "
                         f"This should not have happened!"
                     )
+            else:
+                output.type = ParameterType.PARAMETER_NOT_SET
+                print(
+                    f"Index {index} out of range for parameter {name} "
+                    f"with size {len(vec)}. This should not have happened!"
+                )
 
         return output
 
@@ -374,7 +396,7 @@ class ControlBoardNode(ROS2Node):
         response.values = results
         return response
 
-    def publish_state(self, timestamp, positions, velocities, efforts):
+    def publish_joint_state(self, timestamp, positions, velocities, efforts):
         msg = JointState()
         msg.header.stamp.sec = int(timestamp)
         msg.header.stamp.nanosec = int((timestamp - int(timestamp)) * 1e9)
@@ -810,10 +832,57 @@ def get_pid_output(
     if reference_effort:
         reference_effort = max(min(reference_effort, max_effort), -max_effort)
 
-    if (
-        control_mode == ControlMode.POSITION
-        or control_mode == ControlMode.POSITION_DIRECT
-    ):
+    if control_mode == ControlMode.POSITION:
+        if not script_state.state.position_pid_enabled:
+            script_state.state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+            script_state.state.hf_messages[joint_index] = "Position PID not enabled."
+            return 0.0
+
+        pid = script_state.pids[joint_index].get(control_mode, None)
+        if pid is None:
+            script_state.pids[joint_index][control_mode] = ControlBoardPID(
+                p=script_state.state.position_p_gains[joint_index],
+                i=script_state.state.position_i_gains[joint_index],
+                d=script_state.state.position_d_gains[joint_index],
+                max_integral=script_state.state.position_max_integral[joint_index],
+                max_output=script_state.state.position_max_output[joint_index],
+                max_error=script_state.state.position_max_error[joint_index],
+                default_velocity=settings.position_default_velocity,
+            )
+            pid = script_state.pids[joint_index][control_mode]
+            pid.set_smoother(MinJerkTrajectoryGenerator())
+        else:
+            pid.update_gains(
+                p=script_state.state.position_p_gains[joint_index],
+                i=script_state.state.position_i_gains[joint_index],
+                d=script_state.state.position_d_gains[joint_index],
+                max_integral=script_state.state.position_max_integral[joint_index],
+                max_output=script_state.state.position_max_output[joint_index],
+                max_error=script_state.state.position_max_error[joint_index],
+            )
+
+        if script_state.state.previous_control_modes[joint_index] != control_mode:
+            pid.reset()
+        script_state.state.previous_control_modes[joint_index] = control_mode
+
+        if reference_position:
+            ref_vel = (
+                reference_velocity
+                if reference_velocity and reference_velocity > 0.0
+                else None
+            )
+            pid.set_reference(reference_position, ref_vel)
+
+        return pid.compute(delta_time, measured_position)
+
+    elif control_mode == ControlMode.POSITION_DIRECT:
+        if not script_state.state.position_direct_pid_enabled:
+            script_state.state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+            script_state.state.hf_messages[joint_index] = (
+                "Position Direct PID not enabled."
+            )
+            return 0.0
+
         pid = script_state.pids[joint_index].get(control_mode, None)
         if pid is None:
             script_state.pids[joint_index][control_mode] = ControlBoardPID(
@@ -856,6 +925,11 @@ def get_pid_output(
         return pid.compute(delta_time, measured_position)
 
     elif control_mode == ControlMode.VELOCITY:
+        if not script_state.state.velocity_pid_enabled:
+            script_state.state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+            script_state.state.hf_messages[joint_index] = "Velocity PID not enabled."
+            return 0.0
+
         pid = script_state.pids[joint_index].get(control_mode, None)
         if pid is None:
             script_state.pids[joint_index][control_mode] = ControlBoardPID(
@@ -888,6 +962,11 @@ def get_pid_output(
         return pid.compute(delta_time, measured_velocity)
 
     elif control_mode == ControlMode.TORQUE:
+        if not script_state.state.torque_pid_enabled:
+            script_state.state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
+            script_state.state.hf_messages[joint_index] = "Torque PID not enabled."
+            return 0.0
+
         if (
             script_state.state.previous_control_modes[joint_index] != control_mode
             or control_mode not in script_state.pids[joint_index]
@@ -1058,7 +1137,7 @@ def compute(db: og.Database):
         if hasattr(db.inputs, "timestamp") and db.inputs.timestamp is not None
         else 0.0
     )
-    script_state.node.publish_state(
+    script_state.node.publish_joint_state(
         timestamp=timestamp,
         positions=positions,
         velocities=velocities,
@@ -1079,7 +1158,5 @@ def internal_state():
 # Publish the motor state
 
 # TODO: missing info:
-# - pid offset (??)
-# - disable/enable pid
 # - reset pid
 # - stop position control
