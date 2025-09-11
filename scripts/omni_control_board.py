@@ -179,6 +179,7 @@ class ControlBoardState:
     is_motion_done: list[bool]
     position_pid_enabled: list[bool]
     position_pid_to_reset: list[bool]
+    position_pid_to_stop: list[bool]
 
     # Position Direct PID state
     position_direct_pid_references: list[float]
@@ -224,6 +225,7 @@ class ControlBoardState:
         self.is_motion_done = [False] * n_joints
         self.position_pid_enabled = [True] * n_joints
         self.position_pid_to_reset = [False] * n_joints
+        self.position_pid_to_stop = [False] * n_joints
         self.position_direct_pid_references = [float("nan")] * n_joints
         self.position_direct_pid_errors = [float("nan")] * n_joints
         self.position_direct_pid_outputs = [float("nan")] * n_joints
@@ -464,7 +466,7 @@ class MinJerkTrajectoryGenerator:
             return self._compute_fifth_order_poly_velocity(self.cur_t)
         return 0.0
 
-    def _abort_trajectory(self, limit: float) -> bool:
+    def abort_trajectory(self, limit: float) -> bool:
         self.trajectory_completed = True
         self.cur_t = 0.0
         self.final_position = limit
@@ -528,8 +530,8 @@ class MinJerkTrajectoryGenerator:
         )
         self.coefficient_3 = 6 * (self.final_position - self.initial_position) - 3 * dx0
 
-        if self.num_steps < 1 or self.num_steps == 0:
-            self._abort_trajectory(final_position)
+        if self.num_steps < 1:
+            self.abort_trajectory(final_position)
             self.step = 0.0
             return False
         else:
@@ -871,7 +873,11 @@ def get_pid_output(
             pid.reset()
         script_state.state.previous_control_modes[joint_index] = control_mode
 
-        if reference_position:
+        if script_state.state.position_pid_to_stop[joint_index]:
+            pid.smoother.abort_trajectory(measured_position)
+            script_state.state.position_pid_to_stop[joint_index] = False
+
+        elif reference_position:
             ref_vel = (
                 reference_velocity
                 if reference_velocity and reference_velocity > 0.0
@@ -1209,6 +1215,3 @@ def internal_state():
 # Add compliant mode
 #   Allow setting the impedance offset
 # Publish the motor state
-
-# TODO: missing info:
-# - stop position control
