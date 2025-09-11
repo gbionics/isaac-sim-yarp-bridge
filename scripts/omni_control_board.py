@@ -27,6 +27,7 @@ import math
 import os
 
 import isaacsim.core.utils.stage as stage_utils
+import numpy as np
 import omni.graph.core as og
 import rclpy
 from isaacsim.core.api.robots import Robot
@@ -42,12 +43,16 @@ from sensor_msgs.msg import JointState
 # TODO: these might be inputs, eventually added automatically if they are not existing
 @dataclasses.dataclass
 class ControlBoardSettings:
+    # Node settings
     node_name: str
     node_set_parameters_service_name: str
     node_get_parameters_service_name: str
     node_state_topic_name: str
+    node_motor_state_topic_name: str
     node_timeout: float
+    # Joint settings
     joint_names: list[str]
+    # Position PID settings
     position_p_gains: list[float]
     position_i_gains: list[float]
     position_d_gains: list[float]
@@ -55,20 +60,27 @@ class ControlBoardSettings:
     position_max_output: list[float]
     position_max_error: list[float]
     position_default_velocity: float
+    # Velocity PID settings
     velocity_p_gains: list[float]
     velocity_i_gains: list[float]
     velocity_d_gains: list[float]
     velocity_max_integral: list[float]
     velocity_max_output: list[float]
     velocity_max_error: list[float]
+    # Motor settings
+    gearbox_ratios: list[float]  # Motor to joint
+    motor_torque_constants: list[float]
+    motor_current_noise_variance: list[float]
+    motor_spring_stiffness: list[float]
 
 
 # TODO: change this
 settings = ControlBoardSettings(
-    node_name="isaac_sim_control_board_state",
+    node_name="isaac_sim_control_board",
     node_set_parameters_service_name="ergocub/controlboard/set_parameters",
     node_get_parameters_service_name="ergocub/controlboard/get_parameters",
-    node_state_topic_name="ergocub/controlboard/joint_states",
+    node_state_topic_name="ergocub/controlboard/joint_state",
+    node_motor_state_topic_name="ergocub/controlboard/motor_state",
     node_timeout=0.1,
     joint_names=[
         "camera_tilt",
@@ -136,6 +148,10 @@ settings = ControlBoardSettings(
     velocity_max_integral=[0.0] * 51,
     velocity_max_output=[100.0] * 51,
     velocity_max_error=[math.pi] * 51,
+    gearbox_ratios=[1.0] * 51,
+    motor_torque_constants=[0.1] * 51,
+    motor_current_noise_variance=[0.0] * 51,
+    motor_spring_stiffness=[0.0] * 51,
 )
 
 
@@ -201,6 +217,12 @@ class ControlBoardState:
     torque_pid_outputs: list[float]
     torque_pid_enabled: list[bool]
 
+    # Motor settings
+    gearbox_ratios: list[float]  # Motor to joint
+    motor_torque_constants: list[float]
+    motor_current_noise_variance: list[float]
+    motor_spring_stiffness: list[float]
+
     def __init__(self, s: ControlBoardSettings):
         self.joint_names = s.joint_names
         n_joints = len(self.joint_names)
@@ -241,6 +263,10 @@ class ControlBoardState:
         self.torque_pid_errors = [0.0] * n_joints
         self.torque_pid_outputs = [float("nan")] * n_joints
         self.torque_pid_enabled = [True] * n_joints
+        self.gearbox_ratios = s.gearbox_ratios
+        self.motor_torque_constants = s.motor_torque_constants
+        self.motor_current_noise_variance = s.motor_current_noise_variance
+        self.motor_spring_stiffness = s.motor_spring_stiffness
         self.settings = s
 
 
@@ -251,6 +277,7 @@ class ControlBoardNode(ROS2Node):
         set_service_name: str,
         get_service_name: str,
         state_topic_name: str,
+        motor_state_topic_name: str,
         context,
         state,
     ):
@@ -262,6 +289,9 @@ class ControlBoardNode(ROS2Node):
             GetParametersSrv, get_service_name, self.callback_get_parameters
         )
         self.state_pub = self.create_publisher(JointState, state_topic_name, 10)
+        self.motor_state_pub = self.create_publisher(
+            JointState, motor_state_topic_name, 10
+        )
 
         self.state = state
 
@@ -413,6 +443,16 @@ class ControlBoardNode(ROS2Node):
         msg.velocity = velocities
         msg.effort = efforts
         self.state_pub.publish(msg)
+
+    def publish_motor_state(self, timestamp, positions, velocities, currents):
+        msg = JointState()
+        msg.header.stamp.sec = int(timestamp)
+        msg.header.stamp.nanosec = int((timestamp - int(timestamp)) * 1e9)
+        msg.name = self.state.joint_names
+        msg.position = positions
+        msg.velocity = velocities
+        msg.effort = currents
+        self.motor_state_pub.publish(msg)
 
 
 # This class has been inspired from
@@ -748,6 +788,7 @@ def setup(db: og.Database):
         set_service_name=settings.node_set_parameters_service_name,
         get_service_name=settings.node_get_parameters_service_name,
         state_topic_name=settings.node_state_topic_name,
+        motor_state_topic_name=settings.node_motor_state_topic_name,
         context=db.per_instance_state.context,
         state=db.per_instance_state.state,
     )
@@ -1110,6 +1151,39 @@ def reset_requested_pids(db: og.Database):
             script_state.state.velocity_pid_to_reset[i] = False
 
 
+def compute_motor_state(
+    db: og.Database, joint_index, joint_position, joint_velocity, joint_effort
+):
+    script_state = db.per_instance_state
+
+    def compute_motor_current() -> float:
+
+        gearbox_ratio = script_state.state.gearbox_ratios[joint_index]
+        motor_torque_constant = script_state.state.motor_torque_constants[joint_index]
+        motor_stiffness = script_state.state.motor_spring_stiffness[joint_index]
+
+        # Add a Gaussian noise to the motor current
+        noise_variance = script_state.state.motor_current_noise_variance[joint_index]
+        if noise_variance <= 0:
+            additive_noise = 0.0
+        else:
+            additive_noise = np.random.normal(0.0, math.sqrt(noise_variance))
+
+        simulated_effort = joint_effort + motor_stiffness * joint_position
+
+        k_total = gearbox_ratio * motor_torque_constant
+
+        if k_total == 0:
+            return 0.0
+
+        motor_current = simulated_effort / k_total + additive_noise
+        return motor_current
+
+    motor_position = joint_position * script_state.state.gearbox_ratios[joint_index]
+    motor_velocity = joint_velocity * script_state.state.gearbox_ratios[joint_index]
+    return motor_position, motor_velocity, compute_motor_current()
+
+
 def compute(db: og.Database):
     if (
         not hasattr(db.per_instance_state, "initialized")
@@ -1140,6 +1214,9 @@ def compute(db: og.Database):
     positions = [0.0] * len(script_state.state.joint_names)
     velocities = [0.0] * len(script_state.state.joint_names)
     efforts = [0.0] * len(script_state.state.joint_names)
+    motor_positions = [0.0] * len(script_state.state.joint_names)
+    motor_velocities = [0.0] * len(script_state.state.joint_names)
+    motor_currents = [0.0] * len(script_state.state.joint_names)
     for i in range(len(script_state.state.joint_names)):
         robot_index = script_state.robot_joint_indices[i]
 
@@ -1151,6 +1228,13 @@ def compute(db: og.Database):
 
         measured_effort = joint_state.efforts[robot_index]
         efforts[i] = joint_state.efforts[robot_index]
+
+        motor_position, motor_velocity, motor_current = compute_motor_state(
+            db, i, measured_position, measured_velocity, measured_effort
+        )
+        motor_positions[i] = motor_position
+        motor_velocities[i] = motor_velocity
+        motor_currents[i] = motor_current
 
         has_limits = script_state.robot.dof_properties["hasLimits"][robot_index]
 
@@ -1202,6 +1286,12 @@ def compute(db: og.Database):
         velocities=velocities,
         efforts=efforts,
     )
+    script_state.node.publish_motor_state(
+        timestamp=timestamp,
+        positions=motor_positions,
+        velocities=motor_velocities,
+        currents=motor_currents,
+    )
 
     return True
 
@@ -1214,4 +1304,3 @@ def internal_state():
 # Add current control mode
 # Add compliant mode
 #   Allow setting the impedance offset
-# Publish the motor state
