@@ -10,7 +10,7 @@
 #                    Use db.log_error, db.log_warning to report problems in the compute function.
 #    og: The omni.graph.core module
 
-# Expects 34 inputs:
+# Expects 36 inputs:
 # - timestamp [float]: The current simulation time (in seconds)
 # - deltaTime [float]: Time passed since last compute (in seconds)
 # - reference_joint_names [list[str]]: The list of joint names for the input reference commands.
@@ -34,6 +34,8 @@
 # - position_max_output [list[float]]: The list of position PID maximum output terms. Read only during setup.
 # - position_max_error [list[float]]: The list of position PID maximum error terms. Read only during setup.
 # - position_default_velocity [float]: The default velocity used to smooth position commands. Read only during setup.
+# - compliant_stiffness [list[float]]: The list of compliant mode stiffness. Read only during setup.
+# - compliant_damping [list[float]]: The list of compliant mode damping. Read only during setup.
 # - velocity_p_gains [list[float]]: The list of velocity PID proportional gains. Read only during setup.
 # - velocity_i_gains [list[float]]: The list of velocity PID integral gains. Read only during setup.
 # - velocity_d_gains [list[float]]: The list of velocity PID derivative gains. Read only during setup.
@@ -64,10 +66,6 @@ from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node as ROS2Node
 from sensor_msgs.msg import JointState
 
-# TODO:
-# Add compliant mode
-#   Allow setting the impedance offset. The effort command can be used, since it is not used in position or velocity mode.
-
 
 @dataclasses.dataclass
 class ControlBoardSettings:
@@ -88,6 +86,9 @@ class ControlBoardSettings:
     position_max_output: list[float]
     position_max_error: list[float]
     position_default_velocity: float
+    # Compliant mode settings
+    compliant_stiffness: list[float]
+    compliant_damping: list[float]
     # Velocity PID settings
     velocity_p_gains: list[float]
     velocity_i_gains: list[float]
@@ -119,6 +120,7 @@ class ControlBoardState:
     # Control modes
     control_modes: list[int]
     previous_control_modes: list[int]
+    compliant_modes: list[bool]
     hf_messages: list[str]
 
     # Position PID settings
@@ -128,6 +130,10 @@ class ControlBoardState:
     position_max_integral: list[float]
     position_max_output: list[float]
     position_max_error: list[float]
+
+    # Compliant mode settings
+    compliant_stiffness: list[float]
+    compliant_damping: list[float]
 
     # Velocity PID settings
     velocity_p_gains: list[float]
@@ -184,6 +190,7 @@ class ControlBoardState:
         n_joints = len(self.joint_names)
         self.control_modes = [ControlMode.POSITION] * n_joints
         self.previous_control_modes = [ControlMode.POSITION] * n_joints
+        self.compliant_modes = [False] * n_joints
         self.hf_messages = [""] * n_joints
         self.position_p_gains = settings.position_p_gains
         self.position_i_gains = settings.position_i_gains
@@ -191,6 +198,8 @@ class ControlBoardState:
         self.position_max_integral = settings.position_max_integral
         self.position_max_output = settings.position_max_output
         self.position_max_error = settings.position_max_error
+        self.compliant_stiffness = settings.compliant_stiffness
+        self.compliant_damping = settings.compliant_damping
         self.velocity_p_gains = settings.velocity_p_gains
         self.velocity_i_gains = settings.velocity_i_gains
         self.velocity_d_gains = settings.velocity_d_gains
@@ -563,10 +572,26 @@ class ControlBoardPID:
     output: float
     smoother: None
 
-    def __init__(self, p, i, d, max_integral, max_output, max_error, default_velocity):
+    def __init__(
+        self,
+        p,
+        i,
+        d,
+        compliant_stiffness,
+        compliant_damping,
+        max_integral,
+        max_output,
+        max_error,
+        default_velocity,
+    ):
         self.kp = p
         self.ki = i
         self.kd = d
+
+        self.compliant_mode = False
+        self.compliant_stiffness = compliant_stiffness
+        self.compliant_damping = compliant_damping
+
         self.max_integral = max_integral
         self.max_output = max_output
         self.max_error = max_error
@@ -581,6 +606,7 @@ class ControlBoardPID:
         self.smoother = None
         self.input_reference = None
         self.input_reference_velocity = None
+        self.compliant_offset = None
 
     def set_reference(self, reference, velocity=None):
         self.input_reference = reference
@@ -589,7 +615,16 @@ class ControlBoardPID:
     def set_smoother(self, smoother):
         self.smoother = smoother
 
-    def compute(self, delta_time, measurement):
+    def set_compliant_mode(self, compliant):
+        if compliant != self.compliant_mode:
+            self.reset()
+
+        self.compliant_mode = compliant
+
+    def set_compliant_mode_offset(self, offset):
+        self.compliant_offset = offset
+
+    def compute(self, delta_time, measurement, measurement_velocity=None):
         if self.smoother:
             # Reinitialize the smoother if not initialized or if the reference changed
             if not self.smoother.initialized or self.input_reference:
@@ -624,6 +659,18 @@ class ControlBoardPID:
 
         error = self.reference - measurement
         error = max(min(error, self.max_error), -self.max_error)
+        self.output = (
+            self._stiff_output(delta_time, error)
+            if not self.compliant_mode
+            else self._compliant_output(error, measurement_velocity)
+        )
+
+        self.previous_error = error
+        self.output = max(min(self.output, self.max_output), -self.max_output)
+
+        return self.output
+
+    def _stiff_output(self, delta_time, error):
         # Proportional term
         p_term = self.kp * error
 
@@ -634,23 +681,40 @@ class ControlBoardPID:
         )
         i_term = self.ki * self.integral_state
 
-        # Derivative term
+        # Derivative term. The velocity is estimated and not using the measurement
         derivative = (
             (error - self.previous_error) / delta_time if delta_time > 0 else 0.0
         )
-        self.previous_error = error
         d_term = self.kd * derivative
 
         # Total output
-        self.output = p_term + i_term + d_term
-        self.output = max(min(self.output, self.max_output), -self.max_output)
+        return p_term + i_term + d_term
 
-        return self.output
+    def _compliant_output(self, error, measurement_velocity):
+        offset = self.compliant_offset if self.compliant_offset else 0.0
+        velocity = measurement_velocity if measurement_velocity else 0.0
+        return (
+            self.compliant_stiffness * error
+            - self.compliant_damping * velocity
+            + offset
+        )
 
-    def update_gains(self, p, i, d, max_integral, max_output, max_error):
+    def update_gains(
+        self,
+        p,
+        i,
+        d,
+        compliant_stiffness,
+        compliant_damping,
+        max_integral,
+        max_output,
+        max_error,
+    ):
         self.kp = p
         self.ki = i
         self.kd = d
+        self.compliant_stiffness = compliant_stiffness
+        self.compliant_damping = compliant_damping
         self.max_integral = max_integral
         self.max_output = max_output
         self.max_error = max_error
@@ -660,6 +724,9 @@ class ControlBoardPID:
         self.previous_error = 0.0
         if self.smoother:
             self.smoother.initialized = False
+
+        self.compliant_offset = None
+        self.compliant_mode = False
 
     def get_output(self):
         return self.output
@@ -727,6 +794,8 @@ def fill_settings_from_db(db: og.Database) -> ControlBoardSettings:
         position_max_output=db.inputs.position_max_output,
         position_max_error=db.inputs.position_max_error,
         position_default_velocity=db.inputs.position_default_velocity,
+        compliant_stiffness=db.inputs.compliant_stiffness,
+        compliant_damping=db.inputs.compliant_damping,
         velocity_p_gains=db.inputs.velocity_p_gains,
         velocity_i_gains=db.inputs.velocity_i_gains,
         velocity_d_gains=db.inputs.velocity_d_gains,
@@ -747,6 +816,8 @@ def fill_settings_from_db(db: og.Database) -> ControlBoardSettings:
         == len(s.position_max_integral)
         == len(s.position_max_output)
         == len(s.position_max_error)
+        == len(s.compliant_stiffness)
+        == len(s.compliant_damping)
         == len(s.velocity_p_gains)
         == len(s.velocity_i_gains)
         == len(s.velocity_d_gains)
@@ -917,6 +988,8 @@ def get_pid_output(
                 p=cb_state.position_p_gains[joint_index],
                 i=cb_state.position_i_gains[joint_index],
                 d=cb_state.position_d_gains[joint_index],
+                compliant_stiffness=cb_state.compliant_stiffness[joint_index],
+                compliant_damping=cb_state.compliant_damping[joint_index],
                 max_integral=cb_state.position_max_integral[joint_index],
                 max_output=cb_state.position_max_output[joint_index],
                 max_error=cb_state.position_max_error[joint_index],
@@ -929,6 +1002,8 @@ def get_pid_output(
                 p=cb_state.position_p_gains[joint_index],
                 i=cb_state.position_i_gains[joint_index],
                 d=cb_state.position_d_gains[joint_index],
+                compliant_stiffness=cb_state.compliant_stiffness[joint_index],
+                compliant_damping=cb_state.compliant_damping[joint_index],
                 max_integral=cb_state.position_max_integral[joint_index],
                 max_output=cb_state.position_max_output[joint_index],
                 max_error=cb_state.position_max_error[joint_index],
@@ -950,7 +1025,11 @@ def get_pid_output(
             )
             pid.set_reference(reference_position, ref_vel)
 
-        return pid.compute(delta_time, measured_position)
+        pid.set_compliant_mode(cb_state.compliant_modes[joint_index])
+        if reference_effort:
+            pid.set_compliant_mode_offset(reference_effort)
+
+        return pid.compute(delta_time, measured_position, measured_velocity)
 
     elif control_mode == ControlMode.POSITION_DIRECT:
         if not cb_state.position_direct_pid_enabled:
@@ -964,6 +1043,8 @@ def get_pid_output(
                 p=cb_state.position_p_gains[joint_index],
                 i=cb_state.position_i_gains[joint_index],
                 d=cb_state.position_d_gains[joint_index],
+                compliant_stiffness=cb_state.compliant_stiffness[joint_index],
+                compliant_damping=cb_state.compliant_damping[joint_index],
                 max_integral=cb_state.position_max_integral[joint_index],
                 max_output=cb_state.position_max_output[joint_index],
                 max_error=cb_state.position_max_error[joint_index],
@@ -975,6 +1056,8 @@ def get_pid_output(
                 p=cb_state.position_p_gains[joint_index],
                 i=cb_state.position_i_gains[joint_index],
                 d=cb_state.position_d_gains[joint_index],
+                compliant_stiffness=cb_state.compliant_stiffness[joint_index],
+                compliant_damping=cb_state.compliant_damping[joint_index],
                 max_integral=cb_state.position_max_integral[joint_index],
                 max_output=cb_state.position_max_output[joint_index],
                 max_error=cb_state.position_max_error[joint_index],
@@ -988,16 +1071,13 @@ def get_pid_output(
         cb_state.previous_control_modes[joint_index] = control_mode
 
         if reference_position:
-            ref_vel = (
-                reference_velocity
-                if reference_velocity
-                and reference_velocity > 0.0
-                and control_mode == ControlMode.POSITION
-                else None
-            )
-            pid.set_reference(reference_position, ref_vel)
+            pid.set_reference(reference_position)
 
-        return pid.compute(delta_time, measured_position)
+        pid.set_compliant_mode(cb_state.compliant_modes[joint_index])
+        if reference_effort:
+            pid.set_compliant_mode_offset(reference_effort)
+
+        return pid.compute(delta_time, measured_position, measured_velocity)
 
     elif control_mode == ControlMode.VELOCITY:
         if not cb_state.velocity_pid_enabled:
@@ -1011,10 +1091,12 @@ def get_pid_output(
                 p=cb_state.velocity_p_gains[joint_index],
                 i=cb_state.velocity_i_gains[joint_index],
                 d=cb_state.velocity_d_gains[joint_index],
+                compliant_stiffness=cb_state.compliant_stiffness[joint_index],  # Unused
+                compliant_damping=cb_state.compliant_damping[joint_index],  # Unused
                 max_integral=cb_state.velocity_max_integral[joint_index],
                 max_output=cb_state.velocity_max_output[joint_index],
                 max_error=cb_state.velocity_max_error[joint_index],
-                default_velocity=cb_state.settings.position_default_velocity,  # Not used in velocity mode
+                default_velocity=cb_state.settings.position_default_velocity,  # Unused
             )
             pid = script_state.pids[joint_index][control_mode]
         else:
@@ -1022,6 +1104,8 @@ def get_pid_output(
                 p=cb_state.velocity_p_gains[joint_index],
                 i=cb_state.velocity_i_gains[joint_index],
                 d=cb_state.velocity_d_gains[joint_index],
+                compliant_stiffness=cb_state.compliant_stiffness[joint_index],  # Unused
+                compliant_damping=cb_state.compliant_damping[joint_index],  # Unused
                 max_integral=cb_state.velocity_max_integral[joint_index],
                 max_output=cb_state.velocity_max_output[joint_index],
                 max_error=cb_state.velocity_max_error[joint_index],
@@ -1177,6 +1261,8 @@ def reset_requested_pids(db: og.Database):
             cb_state.position_max_integral[i] = original.position_max_integral[i]
             cb_state.position_max_output[i] = original.position_max_output[i]
             cb_state.position_max_error[i] = original.position_max_error[i]
+            cb_state.compliant_stiffness[i] = original.compliant_stiffness[i]
+            cb_state.compliant_damping[i] = original.compliant_damping[i]
             if i in script_state.pids and ControlMode.POSITION in script_state.pids[i]:
                 script_state.pids[i][ControlMode.POSITION].reset()
             cb_state.position_pid_to_reset[i] = False
@@ -1188,6 +1274,8 @@ def reset_requested_pids(db: og.Database):
             cb_state.position_max_integral[i] = original.position_max_integral[i]
             cb_state.position_max_output[i] = original.position_max_output[i]
             cb_state.position_max_error[i] = original.position_max_error[i]
+            cb_state.compliant_stiffness[i] = original.compliant_stiffness[i]
+            cb_state.compliant_damping[i] = original.compliant_damping[i]
             if (
                 i in script_state.pids
                 and ControlMode.POSITION_DIRECT in script_state.pids[i]
