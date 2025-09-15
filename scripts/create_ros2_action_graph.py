@@ -8,8 +8,8 @@ file.
 ################### EDIT ONLY THE SETTINGS AT THE END OF THE FILE #####################
 #######################################################################################
 
-
 import dataclasses
+import math
 
 import omni.graph.core as og
 
@@ -1670,6 +1670,32 @@ def internal_state():
 
 
 @dataclasses.dataclass
+class ControlBoard:
+    name: str
+    joint_names: list[str]
+    position_p_gains: list[float]
+    position_i_gains: list[float]
+    position_d_gains: list[float]
+    position_max_integral: list[float]
+    position_max_output: list[float]
+    position_max_error: list[float]
+    position_default_velocity: float
+    compliant_stiffness: list[float]
+    compliant_damping: list[float]
+    velocity_p_gains: list[float]
+    velocity_i_gains: list[float]
+    velocity_d_gains: list[float]
+    velocity_max_integral: list[float]
+    velocity_max_output: list[float]
+    velocity_max_error: list[float]
+    gearbox_ratios: list[float]
+    motor_torque_constants: list[float]
+    motor_current_noise_variance: list[float]
+    motor_spring_stiffness: list[float]
+    motor_max_currents: list[float]
+
+
+@dataclasses.dataclass
 class Imu:
     name: str
     target: str
@@ -1696,6 +1722,10 @@ class Settings:
     graph_path: str
     articulation_root: str
     topic_prefix: str
+    domain_id: int
+    useDomainIDEnvVar: bool
+    node_timeout: float
+    control_boards: list[ControlBoard]
     imus: list[Imu]
     cameras: list[Camera]
     FTs: list[FT]
@@ -2282,6 +2312,259 @@ s = Settings(
     graph_path="/World/ergoCubSN002/ros2_action_graph",
     articulation_root=robot_path + "/root_link",
     topic_prefix="/ergocub",
+    domain_id=0,
+    useDomainIDEnvVar=True,
+    node_timeout=1.0,
+    control_boards=[
+        ControlBoard(
+            name="head",
+            joint_names=["neck_pitch", "neck_roll", "neck_yaw", "camera_tilt"],
+            position_p_gains=[1.745, 1.745, 1.745, 1.745],
+            position_i_gains=[0.003, 0.003, 0.003, 0.003],
+            position_d_gains=[0.122, 0.122, 0.122, 0.122],
+            position_max_integral=[9999.0, 9999.0, 9999.0, 9999.0],
+            position_max_output=[9999.0, 9999.0, 9999.0, 9999.0],
+            position_max_error=[9999.0, 9999.0, 9999.0, 9999.0],
+            velocity_p_gains=[8.726, 8.726, 8.726, 8.726],
+            velocity_i_gains=[0.003, 0.003, 0.003, 0.003],
+            velocity_d_gains=[0.035, 0.035, 0.035, 0.035],
+            velocity_max_integral=[9999.0, 9999.0, 9999.0, 9999.0],
+            velocity_max_output=[9999.0, 9999.0, 9999.0, 9999.0],
+            velocity_max_error=[9999.0, 9999.0, 9999.0, 9999.0],
+            position_default_velocity=10.0 * math.pi / 180.0,
+            compliant_stiffness=[0.0, 0.0, 0.0, 0.0],
+            compliant_damping=[0.0, 0.0, 0.0, 0.0],
+            gearbox_ratios=[100.0, 100.0, 100.0, -141.0],
+            motor_torque_constants=[1.0, 1.0, 1.0, 1.0],
+            motor_current_noise_variance=[0.01, 0.01, 0.01, 0.01],
+            motor_spring_stiffness=[0.0, 0.0, 0.0, 0.0],
+            motor_max_currents=[9999.0, 9999.0, 9999.0, 9999.0],
+        ),
+        ControlBoard(
+            name="torso",
+            joint_names=["torso_roll", "torso_pitch", "torso_yaw"],
+            position_p_gains=[70.0, 70.0, 70.0],
+            position_i_gains=[0.17, 0.17, 0.17],
+            position_d_gains=[0.15, 0.15, 0.15],
+            position_max_integral=[9999.0, 9999.0, 9999.0],
+            position_max_output=[9999.0, 9999.0, 9999.0],
+            position_max_error=[0.0, 0.0, 0.0],
+            velocity_p_gains=[8.726, 8.726, 8.726],
+            velocity_i_gains=[0.002, 0.002, 0.002],
+            velocity_d_gains=[0.035, 0.035, 0.035],
+            velocity_max_integral=[9999.0, 9999.0, 9999.0],
+            velocity_max_output=[9999.0, 9999.0, 9999.0],
+            velocity_max_error=[9999.0, 9999.0, 9999.0],
+            position_default_velocity=10.0 * math.pi / 180.0,
+            compliant_stiffness=[0.0, 0.0, 0.0],
+            compliant_damping=[0.0, 0.0, 0.0],
+            gearbox_ratios=[100.0, 160.0, -100.0],
+            motor_torque_constants=[1.0, 1.0, 1.0],
+            motor_current_noise_variance=[0.01, 0.01, 0.01],
+            motor_spring_stiffness=[0.0, 0.0, 0.0],
+            motor_max_currents=[9999.0, 9999.0, 9999.0],
+        ),
+        ControlBoard(
+            name="left_leg",
+            joint_names=[
+                "l_hip_pitch",
+                "l_hip_roll",
+                "l_hip_yaw",
+                "l_knee",
+                "l_ankle_pitch",
+                "l_ankle_roll",
+            ],
+            position_p_gains=[70.0, 70.0, 40.0, 100.0, 100.0, 100.0],
+            position_i_gains=[0.17, 0.17, 0.35, 0.35, 0.35, 0.35],
+            position_d_gains=[0.15, 0.15, 0.35, 0.15, 0.15, 0.15],
+            position_max_integral=[9999.0] * 6,
+            position_max_output=[9999.0] * 6,
+            position_max_error=[9999.0] * 6,
+            velocity_p_gains=[8.726, 8.726, 8.726, 8.726, 8.726, 8.726],
+            velocity_i_gains=[0.176, 0.176, 0.176, 0.176, 0.176, 0.176],
+            velocity_d_gains=[0.349, 0.349, 0.349, 0.349, 0.349, 0.349],
+            velocity_max_integral=[9999.0] * 6,
+            velocity_max_output=[9999.0] * 6,
+            velocity_max_error=[9999.0] * 6,
+            position_default_velocity=10.0 * math.pi / 180.0,
+            compliant_stiffness=None,
+            compliant_damping=None,
+            gearbox_ratios=None,
+            motor_torque_constants=None,
+            motor_current_noise_variance=None,
+            motor_spring_stiffness=None,
+            motor_max_currents=None,
+        ),
+        ControlBoard(
+            name="right_leg",
+            joint_names=[
+                "r_hip_pitch",
+                "r_hip_roll",
+                "r_hip_yaw",
+                "r_knee",
+                "r_ankle_pitch",
+                "r_ankle_roll",
+            ],
+            position_p_gains=[70.0, 70.0, 40.0, 100.0, 100.0, 100.0],
+            position_i_gains=[0.17, 0.17, 0.35, 0.35, 0.35, 0.35],
+            position_d_gains=[0.15, 0.15, 0.35, 0.15, 0.15, 0.15],
+            position_max_integral=[9999.0] * 6,
+            position_max_output=[9999.0] * 6,
+            position_max_error=[9999.0] * 6,
+            velocity_p_gains=[8.726, 8.726, 8.726, 8.726, 8.726, 8.726],
+            velocity_i_gains=[0.176, 0.176, 0.176, 0.176, 0.176, 0.176],
+            velocity_d_gains=[0.349, 0.349, 0.349, 0.349, 0.349, 0.349],
+            velocity_max_integral=[9999.0] * 6,
+            velocity_max_output=[9999.0] * 6,
+            velocity_max_error=[9999.0] * 6,
+            position_default_velocity=10.0 * math.pi / 180.0,
+            compliant_stiffness=None,
+            compliant_damping=None,
+            gearbox_ratios=None,
+            motor_torque_constants=None,
+            motor_current_noise_variance=None,
+            motor_spring_stiffness=None,
+            motor_max_currents=None,
+        ),
+        ControlBoard(
+            name="left_arm",
+            joint_names=[
+                "l_shoulder_pitch",
+                "l_shoulder_roll",
+                "l_shoulder_yaw",
+                "l_elbow",
+                "l_wrist_yaw",
+                "l_wrist_roll",
+                "l_wrist_pitch",
+            ],
+            position_p_gains=[5.745, 5.745, 5.745, 1.745, 1.745, 1.745, 1.745],
+            position_i_gains=[0.174, 0.174, 0.174, 0.174, 0.174, 0.174, 0.0],
+            position_d_gains=[0.174, 0.174, 0.174, 0.174, 0.174, 0.174, 0.0],
+            position_max_integral=[9999.0] * 6,
+            position_max_output=[9999.0] * 6,
+            position_max_error=[9999.0] * 6,
+            velocity_p_gains=[8.726, 8.726, 8.726, 5.236, 5.236, 5.236, 5.236],
+            velocity_i_gains=[0.002, 0.002, 0.002, 0.0, 0.0, 0.0, 0.0],
+            velocity_d_gains=[0.035, 0.035, 0.035, 0.002, 0.002, 0.002, 0.0],
+            velocity_max_integral=[9999.0] * 6,
+            velocity_max_output=[9999.0] * 6,
+            velocity_max_error=[9999.0] * 6,
+            position_default_velocity=10.0 * math.pi / 180.0,
+            compliant_stiffness=None,
+            compliant_damping=None,
+            gearbox_ratios=None,
+            motor_torque_constants=None,
+            motor_current_noise_variance=None,
+            motor_spring_stiffness=None,
+            motor_max_currents=None,
+        ),
+        ControlBoard(
+            name="right_arm",
+            joint_names=[
+                "r_shoulder_pitch",
+                "r_shoulder_roll",
+                "r_shoulder_yaw",
+                "r_elbow",
+                "r_wrist_yaw",
+                "r_wrist_roll",
+                "r_wrist_pitch",
+            ],
+            position_p_gains=[5.745, 5.745, 5.745, 1.745, 1.745, 1.745, 1.745],
+            position_i_gains=[0.174, 0.174, 0.174, 0.174, 0.174, 0.174, 0.0],
+            position_d_gains=[0.174, 0.174, 0.174, 0.174, 0.174, 0.174, 0.0],
+            position_max_integral=[9999.0] * 6,
+            position_max_output=[9999.0] * 6,
+            position_max_error=[9999.0] * 6,
+            velocity_p_gains=[8.726, 8.726, 8.726, 5.236, 5.236, 5.236, 5.236],
+            velocity_i_gains=[0.002, 0.002, 0.002, 0.0, 0.0, 0.0, 0.0],
+            velocity_d_gains=[0.035, 0.035, 0.035, 0.002, 0.002, 0.002, 0.0],
+            velocity_max_integral=[9999.0] * 6,
+            velocity_max_output=[9999.0] * 6,
+            velocity_max_error=[9999.0] * 6,
+            position_default_velocity=10.0 * math.pi / 180.0,
+            compliant_stiffness=None,
+            compliant_damping=None,
+            gearbox_ratios=None,
+            motor_torque_constants=None,
+            motor_current_noise_variance=None,
+            motor_spring_stiffness=None,
+            motor_max_currents=None,
+        ),
+        ControlBoard(
+            name="left_hand",
+            joint_names=[
+                "l_thumb_add",
+                "l_thumb_prox",
+                "l_thumb_dist",
+                "l_index_add",
+                "l_index_prox",
+                "l_index_dist",
+                "l_middle_prox",
+                "l_middle_dist",
+                "l_ring_prox",
+                "l_ring_dist",
+                "l_pinkie_prox",
+                "l_pinkie_dist",
+            ],
+            position_p_gains=[5.0] * 12,
+            position_i_gains=[0.0] * 12,
+            position_d_gains=[0.0] * 12,
+            position_max_integral=[9999.0] * 12,
+            position_max_output=[9999.0] * 12,
+            position_max_error=[9999.0] * 12,
+            velocity_p_gains=[0.01] * 12,
+            velocity_i_gains=[0.0] * 12,
+            velocity_d_gains=[0.0] * 12,
+            velocity_max_integral=[9999.0] * 12,
+            velocity_max_output=[9999.0] * 12,
+            velocity_max_error=[9999.0] * 12,
+            position_default_velocity=10.0 * math.pi / 180.0,
+            compliant_stiffness=None,
+            compliant_damping=None,
+            gearbox_ratios=None,
+            motor_torque_constants=None,
+            motor_current_noise_variance=None,
+            motor_spring_stiffness=None,
+            motor_max_currents=None,
+        ),
+        ControlBoard(
+            name="right_hand",
+            joint_names=[
+                "r_thumb_add",
+                "r_thumb_prox",
+                "r_thumb_dist",
+                "r_index_add",
+                "r_index_prox",
+                "r_index_dist",
+                "r_middle_prox",
+                "r_middle_dist",
+                "r_ring_prox",
+                "r_ring_dist",
+                "r_pinkie_prox",
+                "r_pinkie_dist",
+            ],
+            position_p_gains=[5.0] * 12,
+            position_i_gains=[0.0] * 12,
+            position_d_gains=[0.0] * 12,
+            position_max_integral=[9999.0] * 12,
+            position_max_output=[9999.0] * 12,
+            position_max_error=[9999.0] * 12,
+            velocity_p_gains=[0.01] * 12,
+            velocity_i_gains=[0.0] * 12,
+            velocity_d_gains=[0.0] * 12,
+            velocity_max_integral=[9999.0] * 12,
+            velocity_max_output=[9999.0] * 12,
+            velocity_max_error=[9999.0] * 12,
+            position_default_velocity=10.0 * math.pi / 180.0,
+            compliant_stiffness=None,
+            compliant_damping=None,
+            gearbox_ratios=None,
+            motor_torque_constants=None,
+            motor_current_noise_variance=None,
+            motor_spring_stiffness=None,
+            motor_max_currents=None,
+        ),
+    ],
     imus=[
         # The name of the imu is also the frameId
         Imu(name="waist_imu_0", target=robot_path + "/torso_1/waist_imu_0_sensor"),
