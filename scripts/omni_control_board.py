@@ -185,7 +185,7 @@ class ControlBoardState:
     motor_spring_stiffness: list[float]
     motor_max_currents: list[float]
 
-    def __init__(self, settings: ControlBoardSettings):
+    def __init__(self, settings):
         self.joint_names = settings.joint_names
         n_joints = len(self.joint_names)
         self.control_modes = [ControlMode.POSITION] * n_joints
@@ -834,7 +834,7 @@ def fill_settings_from_db(db: og.Database) -> ControlBoardSettings:
     return s
 
 
-def create_robot_object(db: og.Database, name, joint_names):
+def create_robot_object_cb(db: og.Database, name, joint_names):
     if not hasattr(db.inputs, "robot_prim") or db.inputs.robot_prim is None:
         db.log_error("robot_prim input is not set")
         return None
@@ -862,7 +862,7 @@ def create_robot_object(db: og.Database, name, joint_names):
     return robot, joint_indices
 
 
-def setup(db: og.Database):
+def setup_cb(db: og.Database):
     domain_id = choose_domain_id(db=db)
     settings = fill_settings_from_db(db=db)
     db.per_instance_state.state = ControlBoardState(settings=settings)
@@ -882,7 +882,7 @@ def setup(db: og.Database):
         context=db.per_instance_state.context
     )
     db.per_instance_state.executor.add_node(db.per_instance_state.node)
-    robot, robot_joint_indices = create_robot_object(
+    robot, robot_joint_indices = create_robot_object_cb(
         db, name=settings.node_name, joint_names=settings.joint_names
     )
     if not robot:
@@ -894,6 +894,10 @@ def setup(db: og.Database):
     db.per_instance_state.robot_joint_indices = robot_joint_indices
 
     db.per_instance_state.initialized = True
+
+
+def setup(db: og.Database):
+    setup_cb(db)
 
 
 def cleanup(db: og.Database):
@@ -1333,7 +1337,7 @@ def compute(db: og.Database):
         not hasattr(db.per_instance_state, "initialized")
         or not db.per_instance_state.initialized
     ):
-        setup(db)
+        setup_cb(db)
 
     if not db.per_instance_state.initialized:
         return False
