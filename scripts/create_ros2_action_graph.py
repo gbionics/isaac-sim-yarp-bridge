@@ -1731,6 +1731,15 @@ class Settings:
     FTs: list[FT]
 
 
+# When creating nodes, first you specify the name of the node, and then the type of
+# node. If instead of the type, you pass a dict with a series of other actions, you
+# are creating a compound node instead (basically a subgraph). The inputs and
+# outputs of a compound node are defined by "promoting" inputs and outputs of the
+# internal nodes. If multiple internal nodes need to be connected to the same
+# input/outputs, this connection is done explicitly after creating the compound,
+# using the compound name.
+
+
 def merge_actions(action_list):
     output = {}
     for d in action_list:
@@ -1743,7 +1752,7 @@ def merge_actions(action_list):
     return output
 
 
-def add_basic_nodes(graph_keys):
+def create_basic_nodes(graph_keys, settings):
     return {
         graph_keys.CREATE_NODES: [
             ("tick", "omni.graph.action.OnPlaybackTick"),
@@ -1752,11 +1761,13 @@ def add_basic_nodes(graph_keys):
         ],
         graph_keys.SET_VALUES: [
             ("sim_time.inputs:resetOnStop", True),
+            ("ros2_context.inputs:domain_id", settings.domain_id),
+            ("ros2_context.inputs:useDomainIDEnvVar", settings.useDomainIDEnvVar),
         ],
     }
 
 
-def add_ros2_clock_publisher(graph_keys):
+def create_ros2_clock_publisher(graph_keys):
     return {
         graph_keys.CREATE_NODES: [
             ("ros2_clock_publisher", "isaacsim.ros2.bridge.ROS2PublishClock"),
@@ -1770,15 +1781,6 @@ def add_ros2_clock_publisher(graph_keys):
             ),
         ],
     }
-
-
-# When creating nodes, first you specify the name of the node, and then the type of
-# node. If instead of the type, you pass a dict with a series of other actions, you
-# are creating a compound node instead (basically a subgraph). The inputs and
-# outputs of a compound node are defined by "promoting" inputs and outputs of the
-# internal nodes. If multiple internal nodes need to be connected to the same
-# input/outputs, this connection is done explicitly after creating the compound,
-# using the compound name.
 
 
 def add_ros2_joint_compound(graph_keys, settings):
@@ -2644,8 +2646,8 @@ s = Settings(
 keys = og.Controller.Keys
 create_graph(
     [
-        add_basic_nodes(keys),
-        add_ros2_clock_publisher(keys),
+        create_basic_nodes(keys, s),
+        create_ros2_clock_publisher(keys),
         add_ros2_joint_compound(keys, s),
         create_imu_compounds(keys, s),
         create_camera_compounds(keys, s),
