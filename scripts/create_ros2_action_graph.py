@@ -1783,94 +1783,266 @@ def create_ros2_clock_publisher(graph_keys):
     }
 
 
-def add_ros2_joint_compound(graph_keys, settings):
-    compound_name = "ros2_joint_compound"
-    return {
+def create_control_board_subcompound(
+    graph_keys, board_settings, full_settings, promoted
+):
+    compound_name = board_settings.name + "_compound"
+    subscriber_name = board_settings.name + "_subscriber"
+    cb_script_name = board_settings.name + "_script"
+    cb_topic_prefix = full_settings.topic_prefix + "/" + board_settings.name
+
+    compound_actions = {
         graph_keys.CREATE_NODES: [
+            (subscriber_name, "isaacsim.ros2.bridge.ROS2SubscribeJointState"),
+            (cb_script_name, "omni.graph.scriptnode.ScriptNode"),
+        ],
+        graph_keys.CREATE_ATTRIBUTES: [
+            (cb_script_name + ".inputs:timestamp", "double"),
+            (cb_script_name + ".inputs:deltaTime", "double"),
+            (cb_script_name + ".inputs:reference_joint_names", "token[]"),
+            (cb_script_name + ".inputs:reference_position_commands", "double[]"),
+            (cb_script_name + ".inputs:reference_velocity_commands", "double[]"),
+            (cb_script_name + ".inputs:reference_effort_commands", "double[]"),
+            (cb_script_name + ".inputs:robot_prim", "target"),
+            (cb_script_name + ".inputs:domain_id", "uchar"),
+            (cb_script_name + ".inputs:useDomainIDEnvVar", "bool"),
+            (cb_script_name + ".inputs:node_name", "string"),
+            (cb_script_name + ".inputs:node_set_parameters_service_name", "string"),
+            (cb_script_name + ".inputs:node_get_parameters_service_name", "string"),
+            (cb_script_name + ".inputs:node_state_topic_name", "string"),
+            (cb_script_name + ".inputs:node_motor_state_topic_name", "string"),
+            (cb_script_name + ".inputs:node_timeout", "double"),
+            (cb_script_name + ".inputs:joint_names", "token[]"),
+            (cb_script_name + ".inputs:position_p_gains", "double[]"),
+            (cb_script_name + ".inputs:position_i_gains", "double[]"),
+            (cb_script_name + ".inputs:position_d_gains", "double[]"),
+            (cb_script_name + ".inputs:position_max_integral", "double[]"),
+            (cb_script_name + ".inputs:position_max_output", "double[]"),
+            (cb_script_name + ".inputs:position_max_error", "double[]"),
+            (cb_script_name + ".inputs:position_default_velocity", "double"),
+            (cb_script_name + ".inputs:compliant_stiffness", "double[]"),
+            (cb_script_name + ".inputs:compliant_damping", "double[]"),
+            (cb_script_name + ".inputs:velocity_p_gains", "double[]"),
+            (cb_script_name + ".inputs:velocity_i_gains", "double[]"),
+            (cb_script_name + ".inputs:velocity_d_gains", "double[]"),
+            (cb_script_name + ".inputs:velocity_max_integral", "double[]"),
+            (cb_script_name + ".inputs:velocity_max_output", "double[]"),
+            (cb_script_name + ".inputs:velocity_max_error", "double[]"),
+            (cb_script_name + ".inputs:gearbox_ratios", "double[]"),
+            (cb_script_name + ".inputs:motor_torque_constants", "double[]"),
+            (cb_script_name + ".inputs:motor_current_noise_variance", "double[]"),
+            (cb_script_name + ".inputs:motor_spring_stiffness", "double[]"),
+            (cb_script_name + ".inputs:motor_max_currents", "double[]"),
+        ],
+        graph_keys.SET_VALUES: [
             (
-                compound_name,
-                {
-                    graph_keys.CREATE_NODES: [
-                        (
-                            "ros2_joint_publisher",
-                            "isaacsim.ros2.bridge.ROS2PublishJointState",
-                        ),
-                        (
-                            "ros2_joint_subscriber",
-                            "isaacsim.ros2.bridge.ROS2SubscribeJointState",
-                        ),
-                        (
-                            "articulation_controller",
-                            "isaacsim.core.nodes.IsaacArticulationController",
-                        ),
-                    ],
-                    graph_keys.SET_VALUES: [
-                        (
-                            "ros2_joint_publisher.inputs:targetPrim",
-                            settings.articulation_root,
-                        ),
-                        (
-                            "ros2_joint_publisher.inputs:topicName",
-                            settings.topic_prefix + "/joint_state",
-                        ),
-                        (
-                            "ros2_joint_subscriber.inputs:topicName",
-                            settings.topic_prefix + "/joint_state/input",
-                        ),
-                        (
-                            "articulation_controller.inputs:targetPrim",
-                            settings.articulation_root,
-                        ),
-                    ],
-                    graph_keys.PROMOTE_ATTRIBUTES: [
-                        ("ros2_joint_publisher.inputs:execIn", "inputs:execIn"),
-                        ("ros2_joint_publisher.inputs:context", "inputs:context"),
-                        ("ros2_joint_publisher.inputs:timeStamp", "inputs:timeStamp"),
-                    ],
-                    graph_keys.CONNECT: [
-                        (
-                            "ros2_joint_subscriber.outputs:effortCommand",
-                            "articulation_controller.inputs:effortCommand",
-                        ),
-                        (
-                            "ros2_joint_subscriber.outputs:jointNames",
-                            "articulation_controller.inputs:jointNames",
-                        ),
-                        (
-                            "ros2_joint_subscriber.outputs:positionCommand",
-                            "articulation_controller.inputs:positionCommand",
-                        ),
-                        (
-                            "ros2_joint_subscriber.outputs:velocityCommand",
-                            "articulation_controller.inputs:velocityCommand",
-                        ),
-                    ],
-                },
-            )
+                subscriber_name + ".inputs:topicName",
+                cb_topic_prefix + "/joint_state/input",
+            ),
+            (cb_script_name + ".inputs:script", cb_script_code),
+            (cb_script_name + ".inputs:robot_prim", full_settings.articulation_root),
+            (cb_script_name + ".inputs:domain_id", full_settings.domain_id),
+            (
+                cb_script_name + ".inputs:useDomainIDEnvVar",
+                full_settings.useDomainIDEnvVar,
+            ),
+            (cb_script_name + ".inputs:node_name", board_settings.name + "_node"),
+            (
+                cb_script_name + ".inputs:node_set_parameters_service_name",
+                cb_topic_prefix + "/set_parameters",
+            ),
+            (
+                cb_script_name + ".inputs:node_get_parameters_service_name",
+                cb_topic_prefix + "/get_parameters",
+            ),
+            (
+                cb_script_name + ".inputs:node_state_topic_name",
+                board_settings.name + "/joint_state",
+            ),
+            (
+                cb_script_name + ".inputs:node_motor_state_topic_name",
+                board_settings.name + "/motor_state",
+            ),
+            (cb_script_name + ".inputs:node_timeout", full_settings.node_timeout),
+            (cb_script_name + ".inputs:joint_names", board_settings.joint_names),
+            (
+                cb_script_name + ".inputs:position_p_gains",
+                board_settings.position_p_gains,
+            ),
+            (
+                cb_script_name + ".inputs:position_i_gains",
+                board_settings.position_i_gains,
+            ),
+            (
+                cb_script_name + ".inputs:position_d_gains",
+                board_settings.position_d_gains,
+            ),
+            (
+                cb_script_name + ".inputs:position_max_integral",
+                board_settings.position_max_integral,
+            ),
+            (
+                cb_script_name + ".inputs:position_max_output",
+                board_settings.position_max_output,
+            ),
+            (
+                cb_script_name + ".inputs:position_max_error",
+                board_settings.position_max_error,
+            ),
+            (
+                cb_script_name + ".inputs:position_default_velocity",
+                board_settings.position_default_velocity,
+            ),
+            (
+                cb_script_name + ".inputs:compliant_stiffness",
+                board_settings.compliant_stiffness,
+            ),
+            (
+                cb_script_name + ".inputs:compliant_damping",
+                board_settings.compliant_damping,
+            ),
+            (
+                cb_script_name + ".inputs:velocity_p_gains",
+                board_settings.velocity_p_gains,
+            ),
+            (
+                cb_script_name + ".inputs:velocity_i_gains",
+                board_settings.velocity_i_gains,
+            ),
+            (
+                cb_script_name + ".inputs:velocity_d_gains",
+                board_settings.velocity_d_gains,
+            ),
+            (
+                cb_script_name + ".inputs:velocity_max_integral",
+                board_settings.velocity_max_integral,
+            ),
+            (
+                cb_script_name + ".inputs:velocity_max_output",
+                board_settings.velocity_max_output,
+            ),
+            (
+                cb_script_name + ".inputs:velocity_max_error",
+                board_settings.velocity_max_error,
+            ),
+            (cb_script_name + ".inputs:gearbox_ratios", board_settings.gearbox_ratios),
+            (
+                cb_script_name + ".inputs:motor_torque_constants",
+                board_settings.motor_torque_constants,
+            ),
+            (
+                cb_script_name + ".inputs:motor_current_noise_variance",
+                board_settings.motor_current_noise_variance,
+            ),
+            (
+                cb_script_name + ".inputs:motor_spring_stiffness",
+                board_settings.motor_spring_stiffness,
+            ),
+            (
+                cb_script_name + ".inputs:motor_max_currents",
+                board_settings.motor_max_currents,
+            ),
+        ],
+        graph_keys.PROMOTE_ATTRIBUTES: [
+            (subscriber_name + ".inputs:execIn", "inputs:execIn"),
+            (subscriber_name + ".inputs:context", "inputs:context"),
+            (cb_script_name + ".inputs:timestamp", "inputs:timestamp"),
+            (cb_script_name + ".inputs:deltaTime", "inputs:deltaTime"),
         ],
         graph_keys.CONNECT: [
-            ("tick.outputs:tick", compound_name + ".inputs:execIn"),
             (
-                "ros2_context.outputs:context",
-                compound_name + ".inputs:context",
+                subscriber_name + ".outputs:jointNames",
+                cb_script_name + ".inputs:reference_joint_names",
             ),
             (
-                "sim_time.outputs:simulationTime",
-                compound_name + ".inputs:timeStamp",
+                subscriber_name + ".outputs:positionCommand",
+                cb_script_name + ".inputs:reference_position_commands",
             ),
             (
-                compound_name + ".inputs:execIn",
-                "ros2_joint_subscriber.inputs:execIn",
+                subscriber_name + ".outputs:velocityCommand",
+                cb_script_name + ".inputs:reference_velocity_commands",
             ),
             (
-                compound_name + ".inputs:context",
-                "ros2_joint_subscriber.inputs:context",
-            ),
-            (
-                compound_name + ".inputs:execIn",
-                "articulation_controller.inputs:execIn",
+                subscriber_name + ".outputs:effortCommand",
+                cb_script_name + ".inputs:reference_effort_commands",
             ),
         ],
+    }
+
+    output = {
+        graph_keys.CREATE_NODES: [(compound_name, compound_actions)],
+        # Since we can promote only one execIn, we do the connections here explicitly
+        graph_keys.CONNECT: [
+            (compound_name + ".inputs:execIn", cb_script_name + ".inputs:execIn"),
+        ],
+    }
+
+    if promoted:
+        output[graph_keys.PROMOTE_ATTRIBUTES] = [
+            (compound_name + ".inputs:execIn", "inputs:execIn"),
+            (compound_name + ".inputs:context", "inputs:context"),
+            (compound_name + ".inputs:timestamp", "inputs:timestamp"),
+            (compound_name + ".inputs:deltaTime", "inputs:deltaTime"),
+        ]
+
+    return output, compound_name
+
+
+def create_control_board_compounds(graph_keys, settings):
+    if len(settings.control_boards) == 0:
+        return
+
+    compound_name = "ros2_control_boards_compound"
+    connections = []
+    subcompound_actions = []
+    promote = True
+    for board in settings.control_boards:
+        compound_actions, subcompound_name = create_control_board_subcompound(
+            graph_keys, board, settings, promoted=promote
+        )
+        subcompound_actions.append(compound_actions)
+
+        if not promote:
+            # Add the connections to the inner compound inputs for the internal inputs
+            # that have not been promoted
+            connections.append(
+                (compound_name + ".inputs:execIn", subcompound_name + ".inputs:execIn")
+            )
+            connections.append(
+                (
+                    compound_name + ".inputs:context",
+                    subcompound_name + ".inputs:context",
+                )
+            )
+            connections.append(
+                (
+                    compound_name + ".inputs:timestamp",
+                    subcompound_name + ".inputs:timestamp",
+                )
+            )
+            connections.append(
+                (
+                    compound_name + ".inputs:deltaTime",
+                    subcompound_name + ".inputs:deltaTime",
+                )
+            )
+
+        promote = False  # Only the first compound promotes the attributes
+
+    connections.append(("tick.outputs:tick", compound_name + ".inputs:execIn"))
+    connections.append(
+        ("ros2_context.outputs:context", compound_name + ".inputs:context")
+    )
+    connections.append(
+        ("sim_time.outputs:simulationTime", compound_name + ".inputs:timestamp")
+    )
+    connections.append(
+        ("tick.outputs:deltaSeconds", compound_name + ".inputs:deltaTime")
+    )
+
+    return {
+        graph_keys.CREATE_NODES: [(compound_name, merge_actions(subcompound_actions))],
+        graph_keys.CONNECT: connections,
     }
 
 
@@ -2648,7 +2820,7 @@ create_graph(
     [
         create_basic_nodes(keys, s),
         create_ros2_clock_publisher(keys),
-        add_ros2_joint_compound(keys, s),
+        create_control_board_compounds(keys, s),
         create_imu_compounds(keys, s),
         create_camera_compounds(keys, s),
         create_ft_compounds(keys, s),
