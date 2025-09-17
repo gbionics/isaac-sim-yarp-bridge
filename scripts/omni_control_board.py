@@ -11,42 +11,42 @@
 #    og: The omni.graph.core module
 
 # Expects 36 inputs:
-# - timestamp [float]: The current simulation time (in seconds)
-# - deltaTime [float]: Time passed since last compute (in seconds)
-# - reference_joint_names [list[str]]: The list of joint names for the input reference commands.
-# - reference_position_commands [list[float]]: The list of joint position commands.
-# - reference_velocity_commands [list[float]]: The list of joint velocity commands.
-# - reference_effort_commands [list[float]]: The list of joint effort commands.
+# - timestamp [double]: The current simulation time (in seconds)
+# - deltaTime [double]: Time passed since last compute (in seconds)
+# - reference_joint_names [token[]]: The list of joint names for the input reference commands.
+# - reference_position_commands [double[]]: The list of joint position commands.
+# - reference_velocity_commands [double[]]: The list of joint velocity commands.
+# - reference_effort_commands [double[]]: The list of joint effort commands.
 # - robot_prim [target]: The robot prim. Read only during setup.
-# - domain_id [int]: The ROS2 domain ID (optional). Read only during setup.
+# - domain_id [uchar]: The ROS2 domain ID (optional). Read only during setup.
 # - useDomainIDEnvVar [bool]: Define whether to get the domain ID from an env var or not (optional). Read only during setup.
 # - node_name [str]: The ROS2 node name. Read only during setup.
 # - node_set_parameters_service_name [str]: The ROS2 set parameters service name. Read only during setup.
 # - node_get_parameters_service_name [str]: The ROS2 get parameters service name. Read only during setup.
 # - node_state_topic_name [str]: The ROS2 joint state topic name. Read only during setup.
 # - node_motor_state_topic_name [str]: The ROS2 motor state topic name. Read only during setup.
-# - node_timeout [float]: The ROS2 node timeout (in seconds). Read only during setup.
-# - joint_names [list[str]]: The list of joint names. Read only during setup.
-# - position_p_gains [list[float]]: The list of position PID proportional gains. Read only during setup.
-# - position_i_gains [list[float]]: The list of position PID integral gains. Read only during setup.
-# - position_d_gains [list[float]]: The list of position PID derivative gains. Read only during setup.
-# - position_max_integral [list[float]]: The list of position PID maximum integral terms. Read only during setup.
-# - position_max_output [list[float]]: The list of position PID maximum output terms. Read only during setup.
-# - position_max_error [list[float]]: The list of position PID maximum error terms. Read only during setup.
-# - position_default_velocity [float]: The default velocity used to smooth position commands. Read only during setup.
-# - compliant_stiffness [list[float]]: The list of compliant mode stiffness. Read only during setup.
-# - compliant_damping [list[float]]: The list of compliant mode damping. Read only during setup.
-# - velocity_p_gains [list[float]]: The list of velocity PID proportional gains. Read only during setup.
-# - velocity_i_gains [list[float]]: The list of velocity PID integral gains. Read only during setup.
-# - velocity_d_gains [list[float]]: The list of velocity PID derivative gains. Read only during setup.
-# - velocity_max_integral [list[float]]: The list of velocity PID maximum integral terms. Read only during setup.
-# - velocity_max_output [list[float]]: The list of velocity PID maximum output terms. Read only during setup.
-# - velocity_max_error [list[float]]: The list of velocity PID maximum error terms. Read only during setup.
-# - gearbox_ratios [list[float]]: The list of gearbox ratios (motor to joint). Read only during setup.
-# - motor_torque_constants [list[float]]: The list of motor torque constants. Read only during setup.
-# - motor_current_noise_variance [list[float]]: The list of motor current noise variances. Read only during setup.
-# - motor_spring_stiffness [list[float]]: The list of motor springs stiffness. Read only during setup.
-# - motor_max_currents [list[float]]: The list of motor maximum currents. Read only during setup.
+# - node_timeout [double]: The ROS2 node timeout (in seconds). Read only during setup.
+# - joint_names [token[]]: The list of joint names. Read only during setup.
+# - position_p_gains [double[]]: The list of position PID proportional gains. Read only during setup.
+# - position_i_gains [double[]]: The list of position PID integral gains. Read only during setup.
+# - position_d_gains [double[]]: The list of position PID derivative gains. Read only during setup.
+# - position_max_integral [double[]]: The list of position PID maximum integral terms. Read only during setup.
+# - position_max_output [double[]]: The list of position PID maximum output terms. Read only during setup.
+# - position_max_error [double[]]: The list of position PID maximum error terms. Read only during setup.
+# - position_default_velocity [double]: The default velocity used to smooth position commands. Read only during setup.
+# - compliant_stiffness [double[]]: The list of compliant mode stiffness. Read only during setup.
+# - compliant_damping [double[]]: The list of compliant mode damping. Read only during setup.
+# - velocity_p_gains [double[]]: The list of velocity PID proportional gains. Read only during setup.
+# - velocity_i_gains [double[]]: The list of velocity PID integral gains. Read only during setup.
+# - velocity_d_gains [double[]]: The list of velocity PID derivative gains. Read only during setup.
+# - velocity_max_integral [double[]]: The list of velocity PID maximum integral terms. Read only during setup.
+# - velocity_max_output [double[]]: The list of velocity PID maximum output terms. Read only during setup.
+# - velocity_max_error [double[]]: The list of velocity PID maximum error terms. Read only during setup.
+# - gearbox_ratios [double[]]: The list of gearbox ratios (motor to joint). Read only during setup.
+# - motor_torque_constants [double[]]: The list of motor torque constants. Read only during setup.
+# - motor_current_noise_variance [double[]]: The list of motor current noise variances. Read only during setup.
+# - motor_spring_stiffness [double[]]: The list of motor springs stiffness. Read only during setup.
+# - motor_max_currents [double[]]: The list of motor maximum currents. Read only during setup.
 
 import dataclasses
 import enum
