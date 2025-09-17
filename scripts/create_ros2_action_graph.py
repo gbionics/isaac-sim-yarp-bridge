@@ -1743,6 +1743,8 @@ class Settings:
 def merge_actions(action_list):
     output = {}
     for d in action_list:
+        if d is None:
+            continue
         for key, value in d.items():
             if key in output:
                 for val in value:
@@ -1990,7 +1992,7 @@ def create_control_board_subcompound(
 
 def create_control_board_compounds(graph_keys, settings):
     if len(settings.control_boards) == 0:
-        return
+        return None
 
     compound_name = "ros2_control_boards_compound"
     connections = []
@@ -2096,7 +2098,7 @@ def create_imu_subcompound(graph_keys, settings, name, target):
 
 def create_imu_compounds(graph_keys, settings):
     if len(settings.imus) == 0:
-        return
+        return None
 
     compound_name = "ros2_imus_compound"
     imu_compounds = []
@@ -2249,7 +2251,7 @@ def create_camera_subcompound(
 
 def create_camera_compounds(graph_keys, settings):
     if len(settings.cameras) == 0:
-        return
+        return None
 
     compound_name = "ros2_cameras_compound"
     subcompound_actions = []
@@ -2395,7 +2397,7 @@ def create_ft_subcompound(graph_keys, name, joint, frame, flip, topic_prefix):
 
 def create_ft_compounds(graph_keys, settings):
     if len(settings.FTs) == 0:
-        return
+        return None
 
     ft_compounds = []
     first_compound = None
