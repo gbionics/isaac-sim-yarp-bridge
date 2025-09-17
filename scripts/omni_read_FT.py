@@ -66,12 +66,12 @@ def get_a_H_b(a_prim, b_prim):
     return a_H_b
 
 
-def create_robot_object(db):
+def create_robot_object_ft(db):
     FTJoint = db.inputs.FTJoint
 
     if not FTJoint:
         db.log_error(f"FTJoint input is empty")
-        return
+        return None
 
     stage = stage_utils.get_current_stage()
 
@@ -81,11 +81,11 @@ def create_robot_object(db):
 
     if not joint_prim.IsValid():
         db.log_error(f"The joint prim ({joint_prim}) is not valid")
-        return
+        return None
 
     if not joint_prim.HasAPI("IsaacJointAPI"):
         db.log_error(f"The specified prim ({joint_prim}) is not a joint")
-        return
+        return None
 
     parent_prim = get_parent_robot(joint_prim)
 
@@ -94,7 +94,7 @@ def create_robot_object(db):
             f"Failed to find a parent to {joint_prim} that has the IsaacRobotAPI."
             f"Is the joint attached to a robot?"
         )
-        return
+        return None
 
     robot_object = RobotView(
         prim_paths_expr=str(parent_prim.GetPath()), name=f"robot_ft_{FTJoint_path}"
@@ -102,7 +102,7 @@ def create_robot_object(db):
 
     if joint_name in robot_object.dof_names:
         db.log_error(f"The FT joint {joint_name} is not fixed.")
-        return
+        return None
 
     # See https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.api/docs/index.html#isaacsim.core.api.robots.RobotView.get_measured_joint_forces
 
@@ -127,7 +127,7 @@ def create_robot_object(db):
 
     if not FTFrame_prim.IsValid():
         db.log_error(f"The  prim ({FTFrame_prim}) is not valid")
-        return
+        return None
 
     FTFrame_robot_prim = get_parent_robot(FTFrame_prim)
 
@@ -136,7 +136,7 @@ def create_robot_object(db):
             f"The specified prim ({FTFrame_prim}) has parent "
             f"{FTFrame_robot_prim} that is different from {parent_prim}."
         )
-        return
+        return None
 
     relative_transform = get_a_H_b(FTFrame_prim, b1_prim)
 
@@ -153,8 +153,8 @@ def internal_state():
     return CustomState()
 
 
-def setup(db: og.Database) -> bool:
-    output = create_robot_object(db)
+def setup_ft(db: og.Database) -> bool:
+    output = create_robot_object_ft(db)
     if not output:
         db.log_error("Setup failed")
         return False
@@ -163,6 +163,10 @@ def setup(db: og.Database) -> bool:
     db.per_instance_state.joint_index = joint_index
     db.per_instance_state.sensor_transform = sensor_transform
     return True
+
+
+def setup(db: og.Database) -> bool:
+    return setup_ft(db)
 
 
 def cleanup(db: og.Database):
@@ -174,7 +178,7 @@ def cleanup(db: og.Database):
 def compute(db: og.Database) -> bool:
     state = db.per_instance_state
     if not hasattr(state, "robot_object") or state.robot_object is None:
-        setup(db)
+        setup_ft(db)
         return False
 
     out = state.robot_object.get_measured_joint_forces(
@@ -182,7 +186,7 @@ def compute(db: og.Database) -> bool:
     )
     if out is None:
         db.log_warning(f"Failed to get measured joint forces. Running setup again")
-        setup(db)
+        setup_ft(db)
         return False
     wrench = out.squeeze()
 
