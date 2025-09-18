@@ -1574,6 +1574,18 @@ def compute(db: og.Database):
         script_state.robot.initialize()
         return False
 
+    if joint_state.positions is None:
+        db.log_warning(f"Joint positions are None in {script_state.robot.name}. ")
+        return False
+
+    if joint_state.velocities is None:
+        db.log_warning(f"Joint velocities are None in {script_state.robot.name}. ")
+        return False
+
+    if joint_state.efforts is None:
+        db.log_warning(f"Joint efforts are None in {script_state.robot.name}. ")
+        return False
+
     if rclpy.ok(context=script_state.context):
         script_state.executor.spin_once(timeout_sec=cb_state.settings.node_timeout)
 
