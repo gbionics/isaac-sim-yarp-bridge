@@ -1060,7 +1060,7 @@ def create_robot_object_cb(db: og.Database, name, joint_names):
     if not robot_prim.HasAPI("IsaacRobotAPI"):
         db.log_error(f"The specified prim ({robot_prim}) is not a robot")
         return None
-    robot = Robot(prim_path=robot_prim, name=name)
+    robot = Robot(prim_path=str(robot_prim.GetPath()), name=name)
     robot.initialize()
 
     joint_indices = []
