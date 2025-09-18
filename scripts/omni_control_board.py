@@ -882,12 +882,20 @@ def setup_cb(db: og.Database):
         context=db.per_instance_state.context
     )
     db.per_instance_state.executor.add_node(db.per_instance_state.node)
-    robot, robot_joint_indices = create_robot_object_cb(
+
+    output = create_robot_object_cb(
         db, name=settings.node_name, joint_names=settings.joint_names
     )
-    if not robot:
+
+    if not output:
         db.per_instance_state.initialized = False
         db.log_error("Failed to create robot object")
+        return
+
+    robot, robot_joint_indices = output
+    if not robot or not robot_joint_indices:
+        db.per_instance_state.initialized = False
+        db.log_error("Either the robot or the joint indices are invalid")
         return
 
     db.per_instance_state.robot = robot

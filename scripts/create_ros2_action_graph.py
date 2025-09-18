@@ -1094,12 +1094,20 @@ def setup_cb(db: og.Database):
         context=db.per_instance_state.context
     )
     db.per_instance_state.executor.add_node(db.per_instance_state.node)
-    robot, robot_joint_indices = create_robot_object_cb(
+
+    output = create_robot_object_cb(
         db, name=settings.node_name, joint_names=settings.joint_names
     )
-    if not robot:
+
+    if not output:
         db.per_instance_state.initialized = False
         db.log_error("Failed to create robot object")
+        return
+
+    robot, robot_joint_indices = output
+    if not robot or not robot_joint_indices:
+        db.per_instance_state.initialized = False
+        db.log_error("Either the robot or the joint indices are invalid")
         return
 
     db.per_instance_state.robot = robot
@@ -1728,7 +1736,7 @@ class FT:
 @dataclasses.dataclass
 class Settings:
     graph_path: str
-    articulation_root: str
+    robot_path: str
     topic_prefix: str
     domain_id: int
     useDomainIDEnvVar: bool
@@ -1850,7 +1858,7 @@ def create_control_board_subcompound(
                 cb_topic_prefix + "/joint_state/input",
             ),
             (cb_script_name + ".inputs:script", cb_script_code),
-            (cb_script_name + ".inputs:robot_prim", full_settings.articulation_root),
+            (cb_script_name + ".inputs:robot_prim", full_settings.robot_path),
             (cb_script_name + ".inputs:domain_id", full_settings.domain_id),
             (
                 cb_script_name + ".inputs:useDomainIDEnvVar",
@@ -2494,7 +2502,7 @@ robot_path = "/World/ergoCubSN002/robot"
 realsense_prefix = robot_path + "/realsense/sensors/RSD455"
 s = Settings(
     graph_path="/World/ergoCubSN002/ros2_action_graph",
-    articulation_root=robot_path + "/root_link",
+    robot_path=robot_path,
     topic_prefix="/ergocub",
     domain_id=0,
     useDomainIDEnvVar=True,
