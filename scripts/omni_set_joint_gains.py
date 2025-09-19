@@ -31,15 +31,15 @@ def compute(db: og.Database) -> bool:
         return False
     joint_names = db.inputs.joint_names
 
-    desired_kps = db.inputs.kps if hasattr(db.inputs, "desired_kps") else None
-    if desired_kps is None:
+    desired_kps = db.inputs.desired_kps if hasattr(db.inputs, "desired_kps") else None
+    if desired_kps is None or len(desired_kps) == 0:
         desired_kps = [0.0] * len(joint_names)
     if len(desired_kps) != len(joint_names):
         db.log_error("Length of desired_kp does not match length of joint_names")
         return False
 
-    desired_kds = db.inputs.kds if hasattr(db.inputs, "desired_kds") else None
-    if desired_kds is None:
+    desired_kds = db.inputs.desired_kds if hasattr(db.inputs, "desired_kds") else None
+    if desired_kds is None or len(desired_kds) == 0:
         desired_kds = [0.0] * len(joint_names)
     if len(desired_kds) != len(joint_names):
         db.log_error("Length of desired_kd does not match length of joint_names")
@@ -56,6 +56,7 @@ def compute(db: og.Database) -> bool:
         return False
     robot = Robot(prim_path=str(robot_prim.GetPath()), name="robot_gains_set")
     robot.initialize()
+    controller = robot.get_articulation_controller()
 
     joint_indices = []
     for j in joint_names:
@@ -65,13 +66,12 @@ def compute(db: og.Database) -> bool:
         j_robot_index = robot.dof_names.index(j)
         joint_indices.append(j_robot_index)
 
-    kps, kds = robot.get_gains()
+    kps, kds = controller.get_gains()
     for idx, joint_index in enumerate(joint_indices):
         kps[joint_index] = desired_kps[idx]
         kds[joint_index] = desired_kds[idx]
 
-    controller = robot.get_articulation_controller()
-    controller.set_gains(desired_kps, desired_kds)
+    controller.set_gains(kps, kds)
 
     # Print the names of the joints and their new gains
     for idx, joint_index in enumerate(joint_indices):
