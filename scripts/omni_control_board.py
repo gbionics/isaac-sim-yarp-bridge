@@ -1353,25 +1353,23 @@ def compute(db: og.Database):
     script_state = db.per_instance_state
     cb_state = script_state.state
 
-    joint_state = script_state.robot.get_joints_state()
-    if joint_state is None:
+    measured_positions = script_state.robot.get_joint_positions()
+    if measured_positions is None:
         db.log_warning(
-            f"Failed to get joint states in {script_state.robot.name}. "
+            f"Failed to get joint positions in {script_state.robot.name}. "
             f"Initializing again."
         )
         script_state.robot.initialize()
         return False
 
-    if joint_state.positions is None:
-        db.log_warning(f"Joint positions are None in {script_state.robot.name}. ")
+    measured_velocities = script_state.robot.get_joint_velocities()
+    if measured_velocities is None:
+        db.log_warning(f"Failed to get joint velocities in {script_state.robot.name}. ")
         return False
 
-    if joint_state.velocities is None:
-        db.log_warning(f"Joint velocities are None in {script_state.robot.name}. ")
-        return False
-
-    if joint_state.efforts is None:
-        db.log_warning(f"Joint efforts are None in {script_state.robot.name}. ")
+    measured_efforts = script_state.robot.get_measured_joint_efforts()
+    if measured_efforts is None:
+        db.log_warning(f"Failed to get joint efforts in {script_state.robot.name}. ")
         return False
 
     if rclpy.ok(context=script_state.context):
@@ -1389,14 +1387,14 @@ def compute(db: og.Database):
     for i in range(len(cb_state.joint_names)):
         robot_index = script_state.robot_joint_indices[i]
 
-        measured_position = joint_state.positions[robot_index]
+        measured_position = measured_positions[robot_index]
         positions[i] = measured_position
 
-        measured_velocity = joint_state.velocities[robot_index]
+        measured_velocity = measured_velocities[robot_index]
         velocities[i] = measured_velocity
 
-        measured_effort = joint_state.efforts[robot_index]
-        efforts[i] = joint_state.efforts[robot_index]
+        measured_effort = measured_efforts[robot_index]
+        efforts[i] = measured_effort
 
         motor_position, motor_velocity, motor_current = compute_motor_state(
             db, i, measured_position, measured_velocity, measured_effort
