@@ -58,6 +58,7 @@ import numpy as np
 import omni.graph.core as og
 import rclpy
 from isaacsim.core.api.robots import Robot
+from isaacsim.core.utils.types import ArticulationAction
 from rcl_interfaces.msg import ParameterType, ParameterValue, SetParametersResult
 from rcl_interfaces.srv import GetParameters as GetParametersSrv
 from rcl_interfaces.srv import SetParameters as SetParametersSrv
@@ -1450,9 +1451,10 @@ def compute(db: og.Database):
         effort = max(min(effort, max_effort), -max_effort)
         output_effort.append(effort)
 
-    script_state.robot.set_joint_efforts(
-        efforts=output_effort, joint_indices=script_state.robot_joint_indices
+    action = ArticulationAction(
+        joint_efforts=output_effort, joint_indices=script_state.robot_joint_indices
     )
+    script_state.robot.apply_action(action)
 
     update_state(db)
 
