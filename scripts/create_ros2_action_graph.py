@@ -2516,7 +2516,7 @@ s = Settings(
     topic_prefix="/ergocub",
     domain_id=0,
     useDomainIDEnvVar=True,
-    node_timeout=1.0,
+    node_timeout=0.001,
     control_boards=[
         ControlBoard(
             name="head",
