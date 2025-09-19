@@ -1694,6 +1694,81 @@ def internal_state():
 
 """
 
+gains_reset_script_code = """
+# Expects four inputs:
+# - robot_prim [target] The robot prim
+# - joint_names [token[]] The names of the joints to set the gains for
+# - desired_kps [double[]] The desired position gains (optional, if not provided zero gains will be used)
+# - desired_kds [double[]] The desired velocity gains (optional, if not provided zero gains will be used)
+
+import isaacsim.core.utils.stage as stage_utils
+import omni.graph.core as og
+from isaacsim.core.api.robots import Robot
+
+
+def compute(db: og.Database) -> bool:
+    if not hasattr(db.inputs, "robot_prim") or db.inputs.robot_prim is None:
+        db.log_error("robot_prim input is not set")
+        return False
+
+    if not hasattr(db.inputs, "joint_names") or db.inputs.joint_names is None:
+        db.log_error("joint_names input is not set")
+        return False
+    joint_names = db.inputs.joint_names
+
+    desired_kps = db.inputs.kps if hasattr(db.inputs, "desired_kps") else None
+    if desired_kps is None:
+        desired_kps = [0.0] * len(joint_names)
+    if len(desired_kps) != len(joint_names):
+        db.log_error("Length of desired_kp does not match length of joint_names")
+        return False
+
+    desired_kds = db.inputs.kds if hasattr(db.inputs, "desired_kds") else None
+    if desired_kds is None:
+        desired_kds = [0.0] * len(joint_names)
+    if len(desired_kds) != len(joint_names):
+        db.log_error("Length of desired_kd does not match length of joint_names")
+        return False
+
+    stage = stage_utils.get_current_stage()
+    robot_prim_path = db.inputs.robot_prim[0].pathString
+    robot_prim = stage.GetPrimAtPath(robot_prim_path)
+    if not robot_prim.IsValid():
+        db.log_error(f"robot_prim path {robot_prim_path} is not valid")
+        return False
+    if not robot_prim.HasAPI("IsaacRobotAPI"):
+        db.log_error(f"The specified prim ({robot_prim}) is not a robot")
+        return False
+    robot = Robot(prim_path=str(robot_prim.GetPath()), name="robot_gains_set")
+    robot.initialize()
+
+    joint_indices = []
+    for j in joint_names:
+        if j not in robot.dof_names:
+            db.log_error(f"Joint {j} not found in the robot")
+            return False
+        j_robot_index = robot.dof_names.index(j)
+        joint_indices.append(j_robot_index)
+
+    kps, kds = robot.get_gains()
+    for idx, joint_index in enumerate(joint_indices):
+        kps[joint_index] = desired_kps[idx]
+        kds[joint_index] = desired_kds[idx]
+
+    controller = robot.get_articulation_controller()
+    controller.set_gains(desired_kps, desired_kds)
+
+    # Print the names of the joints and their new gains
+    for idx, joint_index in enumerate(joint_indices):
+        print(
+            f"Set gains for joint {joint_names[idx]}: "
+            f"kp={desired_kps[idx]}, kd={desired_kds[idx]}"
+        )
+
+    return True
+
+"""
+
 
 @dataclasses.dataclass
 class ControlBoard:
@@ -2024,12 +2099,13 @@ def create_control_board_compounds(graph_keys, settings):
     connections = []
     subcompound_actions = []
     promote = True
+    all_joints = []
     for board in settings.control_boards:
         compound_actions, subcompound_name = create_control_board_subcompound(
             graph_keys, board, settings, promoted=promote
         )
+        all_joints.extend(board.joint_names)
         subcompound_actions.append(compound_actions)
-
         if not promote:
             # Add the connections to the inner compound inputs for the internal inputs
             # that have not been promoted
@@ -2067,6 +2143,29 @@ def create_control_board_compounds(graph_keys, settings):
     connections.append(
         ("tick.outputs:deltaSeconds", compound_name + ".inputs:deltaTime")
     )
+
+    node_reset_actions = {
+        graph_keys.CREATE_NODES: [
+            ("gains_reset_script", "omni.graph.scriptnode.ScriptNode"),
+            ("on_stage_event_cb", "omni.graph.action.OnStageEvent"),
+        ],
+        graph_keys.CREATE_ATTRIBUTES: [
+            ("gains_reset_script.inputs:robot_prim", "target"),
+            ("gains_reset_script.inputs:joint_names", "token[]"),
+            ("gains_reset_script.inputs:desired_kps", "double[]"),
+            ("gains_reset_script.inputs:desired_kds", "double[]"),
+        ],
+        graph_keys.SET_VALUES: [
+            ("gains_reset_script.inputs:script", gains_reset_script_code),
+            ("gains_reset_script.inputs:robot_prim", settings.robot_path),
+            ("gains_reset_script.inputs:joint_names", all_joints),
+            ("on_stage_event_cb.inputs:eventName", "OmniGraph Start Play"),
+        ],
+        graph_keys.CONNECT: [
+            ("on_stage_event_cb.outputs:execOut", "gains_reset_script.inputs:execIn"),
+        ],
+    }
+    subcompound_actions.append(node_reset_actions)
 
     return {
         graph_keys.CREATE_NODES: [(compound_name, merge_actions(subcompound_actions))],
