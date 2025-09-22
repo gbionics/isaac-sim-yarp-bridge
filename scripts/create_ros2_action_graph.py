@@ -1870,6 +1870,34 @@ def create_basic_nodes(graph_keys, settings):
     }
 
 
+def create_gains_reset(graph_keys, settings):
+    all_joints = []
+    for board in settings.control_boards:
+        all_joints.extend(board.joint_names)
+
+    return {
+        graph_keys.CREATE_NODES: [
+            ("gains_reset_script", "omni.graph.scriptnode.ScriptNode"),
+            ("on_stage_event_cb", "omni.graph.action.OnStageEvent"),
+        ],
+        graph_keys.CREATE_ATTRIBUTES: [
+            ("gains_reset_script.inputs:robot_prim", "target"),
+            ("gains_reset_script.inputs:joint_names", "token[]"),
+            ("gains_reset_script.inputs:desired_kps", "double[]"),
+            ("gains_reset_script.inputs:desired_kds", "double[]"),
+        ],
+        graph_keys.SET_VALUES: [
+            ("gains_reset_script.inputs:script", gains_reset_script_code),
+            ("gains_reset_script.inputs:robot_prim", settings.robot_path),
+            ("gains_reset_script.inputs:joint_names", all_joints),
+            ("on_stage_event_cb.inputs:eventName", "OmniGraph Start Play"),
+        ],
+        graph_keys.CONNECT: [
+            ("on_stage_event_cb.outputs:execOut", "gains_reset_script.inputs:execIn"),
+        ],
+    }
+
+
 def create_ros2_clock_publisher(graph_keys):
     return {
         graph_keys.CREATE_NODES: [
@@ -2099,12 +2127,10 @@ def create_control_board_compounds(graph_keys, settings):
     connections = []
     subcompound_actions = []
     promote = True
-    all_joints = []
     for board in settings.control_boards:
         compound_actions, subcompound_name = create_control_board_subcompound(
             graph_keys, board, settings, promoted=promote
         )
-        all_joints.extend(board.joint_names)
         subcompound_actions.append(compound_actions)
         if not promote:
             # Add the connections to the inner compound inputs for the internal inputs
@@ -2143,29 +2169,6 @@ def create_control_board_compounds(graph_keys, settings):
     connections.append(
         ("tick.outputs:deltaSeconds", compound_name + ".inputs:deltaTime")
     )
-
-    node_reset_actions = {
-        graph_keys.CREATE_NODES: [
-            ("gains_reset_script", "omni.graph.scriptnode.ScriptNode"),
-            ("on_stage_event_cb", "omni.graph.action.OnStageEvent"),
-        ],
-        graph_keys.CREATE_ATTRIBUTES: [
-            ("gains_reset_script.inputs:robot_prim", "target"),
-            ("gains_reset_script.inputs:joint_names", "token[]"),
-            ("gains_reset_script.inputs:desired_kps", "double[]"),
-            ("gains_reset_script.inputs:desired_kds", "double[]"),
-        ],
-        graph_keys.SET_VALUES: [
-            ("gains_reset_script.inputs:script", gains_reset_script_code),
-            ("gains_reset_script.inputs:robot_prim", settings.robot_path),
-            ("gains_reset_script.inputs:joint_names", all_joints),
-            ("on_stage_event_cb.inputs:eventName", "OmniGraph Start Play"),
-        ],
-        graph_keys.CONNECT: [
-            ("on_stage_event_cb.outputs:execOut", "gains_reset_script.inputs:execIn"),
-        ],
-    }
-    subcompound_actions.append(node_reset_actions)
 
     return {
         graph_keys.CREATE_NODES: [(compound_name, merge_actions(subcompound_actions))],
@@ -2946,6 +2949,7 @@ keys = og.Controller.Keys
 create_graph(
     [
         create_basic_nodes(keys, s),
+        create_gains_reset(keys, s),
         create_ros2_clock_publisher(keys),
         create_control_board_compounds(keys, s),
         create_imu_compounds(keys, s),
