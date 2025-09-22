@@ -545,7 +545,6 @@ class MinJerkTrajectoryGenerator:
         if self.num_steps < 1:
             self.abort_trajectory(final_position)
             self.step = 0.0
-            return False
         else:
             self.step = 1.0 / self.num_steps
 
