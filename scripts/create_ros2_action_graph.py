@@ -1751,7 +1751,11 @@ def compute(db: og.Database) -> bool:
         joint_indices.append(j_robot_index)
 
     kps, kds = controller.get_gains()
+    original_kp = []
+    original_kd = []
     for idx, joint_index in enumerate(joint_indices):
+        original_kp.append(kps[joint_index])
+        original_kd.append(kds[joint_index])
         kps[joint_index] = desired_kps[idx]
         kds[joint_index] = desired_kds[idx]
 
@@ -1761,6 +1765,7 @@ def compute(db: og.Database) -> bool:
     for idx, joint_index in enumerate(joint_indices):
         print(
             f"Set gains for joint {joint_names[idx]}: "
+            f"original_kp={original_kp[idx]}, original_kd={original_kd[idx]} -> "
             f"kp={desired_kps[idx]}, kd={desired_kds[idx]}"
         )
 
