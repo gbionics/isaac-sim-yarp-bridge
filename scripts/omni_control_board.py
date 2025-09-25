@@ -48,6 +48,9 @@
 # - motor_spring_stiffness [double[]]: The list of motor springs stiffness. Read only during setup.
 # - motor_max_currents [double[]]: The list of motor maximum currents. Read only during setup.
 
+# Expects one output:
+# - desired_efforts [double[]]: The list of desired joint efforts.
+
 import dataclasses
 import enum
 import math
@@ -58,7 +61,6 @@ import numpy as np
 import omni.graph.core as og
 import rclpy
 from isaacsim.core.api.robots import Robot
-from isaacsim.core.utils.types import ArticulationAction
 from rcl_interfaces.msg import ParameterType, ParameterValue, SetParametersResult
 from rcl_interfaces.srv import GetParameters as GetParametersSrv
 from rcl_interfaces.srv import SetParameters as SetParametersSrv
@@ -1450,10 +1452,7 @@ def compute(db: og.Database):
         effort = max(min(effort, max_effort), -max_effort)
         output_effort.append(effort)
 
-    action = ArticulationAction(
-        joint_efforts=output_effort, joint_indices=script_state.robot_joint_indices
-    )
-    script_state.robot.apply_action(action)
+    db.outputs.desired_efforts = output_effort
 
     update_state(db)
 

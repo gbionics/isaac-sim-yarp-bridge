@@ -260,6 +260,9 @@ cb_script_code = """
 # - motor_spring_stiffness [double[]]: The list of motor springs stiffness. Read only during setup.
 # - motor_max_currents [double[]]: The list of motor maximum currents. Read only during setup.
 
+# Expects one output:
+# - desired_efforts [double[]]: The list of desired joint efforts.
+
 import dataclasses
 import enum
 import math
@@ -1661,9 +1664,7 @@ def compute(db: og.Database):
         effort = max(min(effort, max_effort), -max_effort)
         output_effort.append(effort)
 
-    script_state.robot.set_joint_efforts(
-        efforts=output_effort, joint_indices=script_state.robot_joint_indices
-    )
+    db.outputs.desired_efforts = output_effort
 
     update_state(db)
 
@@ -1693,81 +1694,181 @@ def internal_state():
 
 """
 
-gains_reset_script_code = """
-# Expects four inputs:
-# - robot_prim [target] The robot prim
-# - joint_names [token[]] The names of the joints to set the gains for
-# - desired_kps [double[]] The desired position gains (optional, if not provided zero gains will be used)
-# - desired_kds [double[]] The desired velocity gains (optional, if not provided zero gains will be used)
+set_robot_efforts_script_code = """
+# Expects four + nc inputs, where nc is the number of control boards:
+# - robot_prim [target] The robot prim. Read only during initialization
+# - joint_names [token[]] The names of the joints to set the gains for. Read only during initialization
+# - control_board_names [token[]] The names of the control boards. Read only during initialization
+# - "control_board_X"_desired_efforts [double[]] The desired efforts for control board X. All the input efforts are stacked according to the order of the control boards
 
 import isaacsim.core.utils.stage as stage_utils
 import omni.graph.core as og
-from isaacsim.core.api.robots import Robot
+from isaacsim.core.api.robots import RobotView
 
 
-def compute(db: og.Database) -> bool:
+class SetRobotEffortsState:
+    def __init__(self):
+        self.initialized = False
+        self.robot = None
+        self.robot_joint_indices = []
+        self.control_board_names = []
+        self.exec_in_counter = 0
+
+
+def internal_state():
+    return SetRobotEffortsState()
+
+
+def create_robot_object_robot_efforts(db: og.Database, joint_names):
     if not hasattr(db.inputs, "robot_prim") or db.inputs.robot_prim is None:
         db.log_error("robot_prim input is not set")
-        return False
-
-    if not hasattr(db.inputs, "joint_names") or db.inputs.joint_names is None:
-        db.log_error("joint_names input is not set")
-        return False
-    joint_names = db.inputs.joint_names
-
-    desired_kps = db.inputs.desired_kps if hasattr(db.inputs, "desired_kps") else None
-    if desired_kps is None or len(desired_kps) == 0:
-        desired_kps = [0.0] * len(joint_names)
-    if len(desired_kps) != len(joint_names):
-        db.log_error("Length of desired_kp does not match length of joint_names")
-        return False
-
-    desired_kds = db.inputs.desired_kds if hasattr(db.inputs, "desired_kds") else None
-    if desired_kds is None or len(desired_kds) == 0:
-        desired_kds = [0.0] * len(joint_names)
-    if len(desired_kds) != len(joint_names):
-        db.log_error("Length of desired_kd does not match length of joint_names")
-        return False
+        return None
 
     stage = stage_utils.get_current_stage()
     robot_prim_path = db.inputs.robot_prim[0].pathString
     robot_prim = stage.GetPrimAtPath(robot_prim_path)
     if not robot_prim.IsValid():
         db.log_error(f"robot_prim path {robot_prim_path} is not valid")
-        return False
+        return None
     if not robot_prim.HasAPI("IsaacRobotAPI"):
         db.log_error(f"The specified prim ({robot_prim}) is not a robot")
-        return False
-    robot = Robot(prim_path=str(robot_prim.GetPath()), name="robot_gains_set")
-    robot.initialize()
-    controller = robot.get_articulation_controller()
+        return None
+    robot = RobotView(
+        prim_paths_expr=str(robot_prim.GetPath()), name="set_robot_efforts"
+    )
 
     joint_indices = []
     for j in joint_names:
         if j not in robot.dof_names:
             db.log_error(f"Joint {j} not found in the robot")
-            return False
+            return None
         j_robot_index = robot.dof_names.index(j)
         joint_indices.append(j_robot_index)
 
-    kps, kds = controller.get_gains()
-    original_kp = []
-    original_kd = []
-    for idx, joint_index in enumerate(joint_indices):
-        original_kp.append(kps[joint_index])
-        original_kd.append(kds[joint_index])
-        kps[joint_index] = desired_kps[idx]
-        kds[joint_index] = desired_kds[idx]
+    return robot, joint_indices
 
-    controller.set_gains(kps, kds)
 
-    # Print the names of the joints and their new gains
-    for idx, joint_index in enumerate(joint_indices):
-        print(
-            f"Set gains for joint {joint_names[idx]}: "
-            f"original_kp={original_kp[idx]}, original_kd={original_kd[idx]} -> "
-            f"kp={desired_kps[idx]}, kd={desired_kds[idx]}"
+def initialize_and_reset_gains(db: og.Database):
+    if (
+        not hasattr(db.per_instance_state, "initialized")
+        or not db.per_instance_state.initialized
+    ):
+        db.log_error("Node is not initialized")
+        return
+
+    robot = db.per_instance_state.robot
+    joint_indices = db.per_instance_state.robot_joint_indices
+    if not robot or not joint_indices:
+        db.log_error("Robot or joint indices are not properly initialized")
+        return
+
+    robot.initialize()
+    robot.set_effort_modes(mode="force", joint_indices=joint_indices)
+    robot.set_gains(
+        kps=[0.0] * len(joint_indices),
+        kds=[0.0] * len(joint_indices),
+        joint_indices=joint_indices,
+    )
+
+    print("Robot efforts control initialized and gains reset for joints:")
+    for j in joint_indices:
+        print(f" - {robot.dof_names[j]} (index {j})")
+
+
+def setup_robot_efforts(db: og.Database):
+
+    db.per_instance_state.initialized = False
+
+    if not hasattr(db.inputs, "joint_names"):
+        db.log_error("joint_names input is not set")
+        return
+    joint_names = db.inputs.joint_names
+
+    if not hasattr(db.inputs, "control_board_names"):
+        db.log_error("control_board_names input is not set")
+        return
+    db.per_instance_state.control_board_names = db.inputs.control_board_names
+
+    output = create_robot_object_robot_efforts(db, joint_names=joint_names)
+
+    if not output:
+        db.per_instance_state.initialized = False
+        db.log_error("Failed to create robot object")
+        return
+
+    robot, robot_joint_indices = output
+    if not robot or not robot_joint_indices:
+        db.per_instance_state.initialized = False
+        db.log_error("Either the robot or the joint indices are invalid")
+        return
+
+    db.per_instance_state.robot = robot
+    db.per_instance_state.robot_joint_indices = robot_joint_indices
+
+    db.per_instance_state.exec_in_counter = 0
+    db.per_instance_state.initialized = True
+
+    initialize_and_reset_gains(db)
+
+
+def setup(db: og.Database):
+    setup_robot_efforts(db)
+
+
+def cleanup(db: og.Database):
+    if (
+        not hasattr(db.per_instance_state, "initialized")
+        or not db.per_instance_state.initialized
+    ):
+        return
+
+    db.per_instance_state.robot = None
+    db.per_instance_state.exec_in_counter = 0
+    db.per_instance_state.initialized = False
+
+
+def compute(db: og.Database) -> bool:
+
+    state = db.per_instance_state
+    if not hasattr(state, "initialized") or not state.initialized:
+        setup_robot_efforts(db)
+        return False
+
+    robot = state.robot
+    joint_indices = state.robot_joint_indices
+    control_board_names = state.control_board_names
+
+    state.exec_in_counter += 1
+    if state.exec_in_counter < len(control_board_names):
+        # Every control board connects to the execIn of this node, so we need to wait
+        # until we have received at least one execIn from each control board before
+        # setting the efforts.
+        return True
+    state.exec_in_counter = 0
+
+    measured_efforts = robot.get_measured_joint_efforts(joint_indices=joint_indices)
+    if measured_efforts is None:
+        db.log_warning("Trying to reinitialize the robot efforts control")
+        initialize_and_reset_gains(db)
+        return False
+
+    all_desired_efforts = []
+    for board_name in control_board_names:
+        input_name = f"{board_name}_desired_efforts"
+        if not hasattr(db.inputs, input_name):
+            db.log_error(f"Input {input_name} is not set")
+            return False
+        desired_efforts = getattr(db.inputs, input_name)
+        all_desired_efforts.extend(desired_efforts)
+
+    if len(all_desired_efforts) != len(joint_indices):
+        db.log_error(
+            f"Number of desired efforts ({len(all_desired_efforts)}) "
+            f"does not match number of joints ({len(joint_indices)})"
         )
+        return False
+
+    robot.set_joint_efforts(efforts=all_desired_efforts, joint_indices=joint_indices)
 
     return True
 
@@ -1874,34 +1975,6 @@ def create_basic_nodes(graph_keys, settings):
     }
 
 
-def create_gains_reset(graph_keys, settings):
-    all_joints = []
-    for board in settings.control_boards:
-        all_joints.extend(board.joint_names)
-
-    return {
-        graph_keys.CREATE_NODES: [
-            ("gains_reset_script", "omni.graph.scriptnode.ScriptNode"),
-            ("on_stage_event_cb", "omni.graph.action.OnStageEvent"),
-        ],
-        graph_keys.CREATE_ATTRIBUTES: [
-            ("gains_reset_script.inputs:robot_prim", "target"),
-            ("gains_reset_script.inputs:joint_names", "token[]"),
-            ("gains_reset_script.inputs:desired_kps", "double[]"),
-            ("gains_reset_script.inputs:desired_kds", "double[]"),
-        ],
-        graph_keys.SET_VALUES: [
-            ("gains_reset_script.inputs:script", gains_reset_script_code),
-            ("gains_reset_script.inputs:robot_prim", settings.robot_path),
-            ("gains_reset_script.inputs:joint_names", all_joints),
-            ("on_stage_event_cb.inputs:eventName", "OmniGraph Start Play"),
-        ],
-        graph_keys.CONNECT: [
-            ("on_stage_event_cb.outputs:execOut", "gains_reset_script.inputs:execIn"),
-        ],
-    }
-
-
 def create_ros2_clock_publisher(graph_keys):
     return {
         graph_keys.CREATE_NODES: [
@@ -1968,6 +2041,7 @@ def create_control_board_subcompound(
             (cb_script_name + ".inputs:motor_current_noise_variance", "double[]"),
             (cb_script_name + ".inputs:motor_spring_stiffness", "double[]"),
             (cb_script_name + ".inputs:motor_max_currents", "double[]"),
+            (cb_script_name + ".outputs:desired_efforts", "double[]"),
         ],
         graph_keys.SET_VALUES: [
             (
@@ -2083,6 +2157,8 @@ def create_control_board_subcompound(
             (subscriber_name + ".inputs:context", "inputs:context"),
             (cb_script_name + ".inputs:timestamp", "inputs:timestamp"),
             (cb_script_name + ".inputs:deltaTime", "inputs:deltaTime"),
+            (cb_script_name + ".outputs:execOut", "outputs:execOut"),
+            (cb_script_name + ".outputs:desired_efforts", "outputs:desired_efforts"),
         ],
         graph_keys.CONNECT: [
             (
@@ -2130,6 +2206,32 @@ def create_control_board_compounds(graph_keys, settings):
     compound_name = "ros2_control_boards_compound"
     connections = []
     subcompound_actions = []
+
+    set_efforts_name = "set_robot_efforts"
+    all_joints = []
+    control_boards = []
+    for cb in settings.control_boards:
+        all_joints.extend(cb.joint_names)
+        control_boards.append(cb.name)
+
+    set_efforts_actions = {
+        graph_keys.CREATE_NODES: [
+            (set_efforts_name, "omni.graph.scriptnode.ScriptNode"),
+        ],
+        graph_keys.CREATE_ATTRIBUTES: [
+            (set_efforts_name + ".inputs:robot_prim", "target"),
+            (set_efforts_name + ".inputs:joint_names", "token[]"),
+            (set_efforts_name + ".inputs:control_board_names", "token[]"),
+        ],
+        graph_keys.SET_VALUES: [
+            (set_efforts_name + ".inputs:script", set_robot_efforts_script_code),
+            (set_efforts_name + ".inputs:robot_prim", settings.robot_path),
+            (set_efforts_name + ".inputs:joint_names", all_joints),
+            (set_efforts_name + ".inputs:control_board_names", control_boards),
+        ],
+        graph_keys.CONNECT: [],
+    }
+
     promote = True
     for board in settings.control_boards:
         compound_actions, subcompound_name = create_control_board_subcompound(
@@ -2162,6 +2264,26 @@ def create_control_board_compounds(graph_keys, settings):
             )
 
         promote = False  # Only the first compound promotes the attributes
+
+        set_efforts_actions[graph_keys.CREATE_ATTRIBUTES].append(
+            (f"{set_efforts_name}.inputs:{board.name}_desired_efforts", "double[]")
+        )
+        set_efforts_actions[graph_keys.CONNECT].append(
+            (
+                f"{subcompound_name}.outputs:desired_efforts",
+                f"{set_efforts_name}.inputs:{board.name}_desired_efforts",
+            ),
+        )
+        # We connect the execOut of each control board to the execIn of the set_efforts
+        # node, so that we set the efforts only after all control boards have been
+        # updated. The script inside the set_efforts node takes care of waiting
+        # until it has received at least one execIn from each control board before
+        # setting the efforts.
+        connections.append(
+            (subcompound_name + ".outputs:execOut", set_efforts_name + ".inputs:execIn")
+        )
+
+    subcompound_actions.append(set_efforts_actions)
 
     connections.append(("tick.outputs:tick", compound_name + ".inputs:execIn"))
     connections.append(
@@ -2953,7 +3075,6 @@ keys = og.Controller.Keys
 create_graph(
     [
         create_basic_nodes(keys, s),
-        create_gains_reset(keys, s),
         create_ros2_clock_publisher(keys),
         create_control_board_compounds(keys, s),
         create_imu_compounds(keys, s),
