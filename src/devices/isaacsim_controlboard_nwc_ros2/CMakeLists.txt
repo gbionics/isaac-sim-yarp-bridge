@@ -34,6 +34,7 @@ target_link_libraries(${plugin_name}_lib
   YARP::YARP_dev
   rclcpp::rclcpp
   sensor_msgs::sensor_msgs__rosidl_typesupport_cpp
+  rcl_interfaces::rcl_interfaces__rosidl_typesupport_cpp
 )
 
 target_include_directories(${plugin_name}_lib

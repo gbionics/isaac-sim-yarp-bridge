@@ -33,10 +33,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::open(yarp::os::Searchable& config)
     m_node = std::make_shared<CBNode>(m_paramsParser.m_node_name,
                                       m_paramsParser.m_joint_state_topic_name,
                                       m_paramsParser.m_motor_state_topic_name,
+                                      m_paramsParser.m_get_parameters_service_name,
+                                      m_paramsParser.m_set_parameters_service_name,
+                                      m_paramsParser.m_service_request_timeout,
                                       this);
     m_executor = std::make_unique<rclcpp::executors::MultiThreadedExecutor>();
     m_executor->add_node(m_node);
     m_executorThread = std::thread([this]() { m_executor->spin(); });
+
+    //TODO check if the services are available and get the control modes and compliant states of the joints
 
     return true;
 }
@@ -1245,10 +1250,12 @@ void yarp::dev::IsaacSimControlBoardNWCROS2::JointsState::convert_to_vectors(con
     timestamp = js->header.stamp.sec + js->header.stamp.nanosec * 1e-9;
     valid = true;
 }
-
 yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::CBNode(const std::string& node_name,
                                                        const std::string& joint_state_topic_name,
                                                        const std::string& motor_state_topic_name,
+                                                       const std::string& get_param_service_name,
+                                                       const std::string& set_param_service_name,
+                                                       double requests_timeout_sec,
                                                        IsaacSimControlBoardNWCROS2* parent)
 : rclcpp::Node(node_name)
 {
@@ -1262,5 +1269,39 @@ yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::CBNode(const std::string& node_n
         [parent](const sensor_msgs::msg::JointState::ConstSharedPtr msg) {
         parent->updateMotorMeasurements(msg);
     });
+    m_getParamClient = this->create_client<rcl_interfaces::srv::GetParameters>(get_param_service_name);
+    m_setParamClient = this->create_client<rcl_interfaces::srv::SetParameters>(set_param_service_name);
+
+    // convert double to chrono
+    m_requestsTimeout = std::chrono::duration<double>(requests_timeout_sec);
 }
 
+std::vector<rcl_interfaces::msg::ParameterValue> yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::getParameters(const std::vector<std::string>& names)
+{
+    auto get_request = std::make_shared<rcl_interfaces::srv::GetParameters::Request>();
+    get_request->names = names;
+
+    auto result = m_getParamClient->async_send_request(get_request);
+
+    if (result.wait_for(m_requestsTimeout) != std::future_status::ready)
+    {
+        yCError(CB) << "[getParameters] Service call timed out";
+        return std::vector<rcl_interfaces::msg::ParameterValue>();
+    }
+
+    return result.get()->values;
+}
+
+
+std::vector<rcl_interfaces::msg::SetParametersResult> yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::setParameters(const std::vector<rcl_interfaces::msg::Parameter>& params)
+{
+    auto set_request = std::make_shared<rcl_interfaces::srv::SetParameters::Request>();
+    set_request->parameters = params;
+    auto result = m_setParamClient->async_send_request(set_request);
+    if (result.wait_for(m_requestsTimeout) != std::future_status::ready)
+    {
+        yCError(CB) << "[setParameters] Service call timed out";
+        return std::vector<rcl_interfaces::msg::SetParametersResult>();
+    }
+    return result.get()->results;
+}

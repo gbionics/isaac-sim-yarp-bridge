@@ -11,6 +11,11 @@
 #include <rclcpp/node.hpp>
 #include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
+#include <rcl_interfaces/srv/get_parameters.hpp>
+#include <rcl_interfaces/srv/set_parameters.hpp>
+#include <rcl_interfaces/msg/parameter.hpp>
+#include <rcl_interfaces/msg/parameter_value.hpp>
+#include <rcl_interfaces/msg/set_parameters_result.hpp>
 
 #include <memory>
 #include <mutex>
@@ -18,6 +23,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <chrono>
 
 #include "IsaacSimControlBoardNWCROS2_ParamsParser.h"
 
@@ -450,10 +456,21 @@ private:
         explicit CBNode(const std::string& node_name,
                         const std::string& joint_state_topic_name,
                         const std::string& motor_state_topic_name,
+                        const std::string& get_param_service_name,
+                        const std::string& set_param_service_name,
+                        double requests_timeout_sec,
                         IsaacSimControlBoardNWCROS2* parent);
+
+        std::vector<rcl_interfaces::msg::ParameterValue> getParameters(const std::vector<std::string>& names);
+
+        std::vector<rcl_interfaces::msg::SetParametersResult> setParameters(const std::vector<rcl_interfaces::msg::Parameter>& params);
+
     private:
         rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_jointStateSubscription;
         rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_motorStateSubscription;
+        rclcpp::Client<rcl_interfaces::srv::GetParameters>::SharedPtr m_getParamClient;
+        rclcpp::Client<rcl_interfaces::srv::SetParameters>::SharedPtr m_setParamClient;
+        std::chrono::duration<double> m_requestsTimeout;
     };
 
     struct JointsState

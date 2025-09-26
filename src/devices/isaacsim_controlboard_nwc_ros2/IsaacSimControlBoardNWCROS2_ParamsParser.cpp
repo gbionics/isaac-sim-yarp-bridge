@@ -8,7 +8,7 @@
 // This is an automatically generated file. Please do not edit it.
 // It will be re-generated if the cmake flag ALLOW_DEVICE_PARAM_PARSER_GERNERATION is ON.
 
-// Generated on: Fri Sep 26 11:45:26 2025
+// Generated on: Fri Sep 26 16:25:53 2025
 
 
 #include "IsaacSimControlBoardNWCROS2_ParamsParser.h"
@@ -32,6 +32,9 @@ std::vector<std::string> IsaacSimControlBoardNWCROS2_ParamsParser::getListOfPara
     params.push_back("joint_state_topic_name");
     params.push_back("motor_state_topic_name");
     params.push_back("joint_references_topic_name");
+    params.push_back("get_parameters_service_name");
+    params.push_back("set_parameters_service_name");
+    params.push_back("service_request_timeout");
     return params;
 }
 
@@ -56,6 +59,21 @@ bool IsaacSimControlBoardNWCROS2_ParamsParser::getParamValue(const std::string& 
     if (paramName =="joint_references_topic_name")
     {
         paramValue = m_joint_references_topic_name;
+        return true;
+    }
+    if (paramName =="get_parameters_service_name")
+    {
+        paramValue = m_get_parameters_service_name;
+        return true;
+    }
+    if (paramName =="set_parameters_service_name")
+    {
+        paramValue = m_set_parameters_service_name;
+        return true;
+    }
+    if (paramName =="service_request_timeout")
+    {
+        paramValue = std::to_string(m_service_request_timeout);
         return true;
     }
 
@@ -141,10 +159,56 @@ bool      IsaacSimControlBoardNWCROS2_ParamsParser::parseParams(const yarp::os::
         else
         {
             yCError(IsaacSimControlBoardNWCROS2ParamsCOMPONENT) << "Mandatory parameter 'joint_references_topic_name' not found!";
-            yCError(IsaacSimControlBoardNWCROS2ParamsCOMPONENT) << "Description of the parameter: Specify the name of the FT topic to open to publish the joint references";
+            yCError(IsaacSimControlBoardNWCROS2ParamsCOMPONENT) << "Description of the parameter: Specify the name of the topic to open to publish the joint references";
             return false;
         }
         prop_check.unput("joint_references_topic_name");
+    }
+
+    //Parser of parameter get_parameters_service_name
+    {
+        if (config.check("get_parameters_service_name"))
+        {
+            m_get_parameters_service_name = config.find("get_parameters_service_name").asString();
+            yCInfo(IsaacSimControlBoardNWCROS2ParamsCOMPONENT) << "Parameter 'get_parameters_service_name' using value:" << m_get_parameters_service_name;
+        }
+        else
+        {
+            yCError(IsaacSimControlBoardNWCROS2ParamsCOMPONENT) << "Mandatory parameter 'get_parameters_service_name' not found!";
+            yCError(IsaacSimControlBoardNWCROS2ParamsCOMPONENT) << "Description of the parameter: Specify the name of the service for getting parameters from IsaacSim";
+            return false;
+        }
+        prop_check.unput("get_parameters_service_name");
+    }
+
+    //Parser of parameter set_parameters_service_name
+    {
+        if (config.check("set_parameters_service_name"))
+        {
+            m_set_parameters_service_name = config.find("set_parameters_service_name").asString();
+            yCInfo(IsaacSimControlBoardNWCROS2ParamsCOMPONENT) << "Parameter 'set_parameters_service_name' using value:" << m_set_parameters_service_name;
+        }
+        else
+        {
+            yCError(IsaacSimControlBoardNWCROS2ParamsCOMPONENT) << "Mandatory parameter 'set_parameters_service_name' not found!";
+            yCError(IsaacSimControlBoardNWCROS2ParamsCOMPONENT) << "Description of the parameter: Specify the name of the service for setting parameters to IsaacSim";
+            return false;
+        }
+        prop_check.unput("set_parameters_service_name");
+    }
+
+    //Parser of parameter service_request_timeout
+    {
+        if (config.check("service_request_timeout"))
+        {
+            m_service_request_timeout = config.find("service_request_timeout").asFloat64();
+            yCInfo(IsaacSimControlBoardNWCROS2ParamsCOMPONENT) << "Parameter 'service_request_timeout' using value:" << m_service_request_timeout;
+        }
+        else
+        {
+            yCInfo(IsaacSimControlBoardNWCROS2ParamsCOMPONENT) << "Parameter 'service_request_timeout' using DEFAULT value:" << m_service_request_timeout;
+        }
+        prop_check.unput("service_request_timeout");
     }
 
     /*
@@ -186,11 +250,14 @@ std::string      IsaacSimControlBoardNWCROS2_ParamsParser::getDocumentationOfDev
     doc = doc + std::string("'node_name': Set the name for ROS node\n");
     doc = doc + std::string("'joint_state_topic_name': Specify the name of the joint state topic to connect\n");
     doc = doc + std::string("'motor_state_topic_name': Specify the name of the motor state topic to connect\n");
-    doc = doc + std::string("'joint_references_topic_name': Specify the name of the FT topic to open to publish the joint references\n");
+    doc = doc + std::string("'joint_references_topic_name': Specify the name of the topic to open to publish the joint references\n");
+    doc = doc + std::string("'get_parameters_service_name': Specify the name of the service for getting parameters from IsaacSim\n");
+    doc = doc + std::string("'set_parameters_service_name': Specify the name of the service for setting parameters to IsaacSim\n");
+    doc = doc + std::string("'service_request_timeout': Specify the timeout value for getting and setting parameters\n");
     doc = doc + std::string("\n");
     doc = doc + std::string("Here are some examples of invocation command with yarpdev, with all params:\n");
-    doc = doc + " yarpdev --device IsaacSimControlBoardNWCROS2 --node_name ControlBoardBridgeSubscriber --joint_state_topic_name <mandatory_value> --motor_state_topic_name <mandatory_value> --joint_references_topic_name <mandatory_value>\n";
+    doc = doc + " yarpdev --device IsaacSimControlBoardNWCROS2 --node_name ControlBoardBridgeSubscriber --joint_state_topic_name <mandatory_value> --motor_state_topic_name <mandatory_value> --joint_references_topic_name <mandatory_value> --get_parameters_service_name <mandatory_value> --set_parameters_service_name <mandatory_value> --service_request_timeout 0.5\n";
     doc = doc + std::string("Using only mandatory params:\n");
-    doc = doc + " yarpdev --device IsaacSimControlBoardNWCROS2 --joint_state_topic_name <mandatory_value> --motor_state_topic_name <mandatory_value> --joint_references_topic_name <mandatory_value>\n";
+    doc = doc + " yarpdev --device IsaacSimControlBoardNWCROS2 --joint_state_topic_name <mandatory_value> --motor_state_topic_name <mandatory_value> --joint_references_topic_name <mandatory_value> --get_parameters_service_name <mandatory_value> --set_parameters_service_name <mandatory_value>\n";
     doc = doc + std::string("=============================================\n\n");    return doc;
 }
