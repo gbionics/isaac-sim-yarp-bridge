@@ -1126,6 +1126,7 @@ def get_pid_output(
 
         if cb_state.previous_control_modes[joint_index] != control_mode:
             pid.reset()
+            pid.set_reference(0.0)
         cb_state.previous_control_modes[joint_index] = control_mode
 
         if reference_velocity:
