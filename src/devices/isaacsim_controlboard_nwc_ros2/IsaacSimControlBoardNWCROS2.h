@@ -439,14 +439,21 @@ public:
 
 private:
 
-    void updateMeasurements(const sensor_msgs::msg::JointState::ConstSharedPtr msg);
+    void updateJointMeasurements(const sensor_msgs::msg::JointState::ConstSharedPtr msg);
+
+    void updateMotorMeasurements(const sensor_msgs::msg::JointState::ConstSharedPtr msg);
+
 
     class CBNode : public rclcpp::Node
     {
     public:
-        explicit CBNode(const std::string& node_name, const std::string& topic_name, IsaacSimControlBoardNWCROS2* parent);
+        explicit CBNode(const std::string& node_name,
+                        const std::string& joint_state_topic_name,
+                        const std::string& motor_state_topic_name,
+                        IsaacSimControlBoardNWCROS2* parent);
     private:
-        rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_subscription;
+        rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_jointStateSubscription;
+        rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_motorStateSubscription;
     };
 
     struct JointsState
@@ -466,6 +473,6 @@ private:
     std::mutex m_mutex;
     std::thread m_executorThread;
     IsaacSimControlBoardNWCROS2_ParamsParser m_paramsParser;
-    JointsState m_measurements;
+    JointsState m_jointState, m_motorState;
 };
 #endif

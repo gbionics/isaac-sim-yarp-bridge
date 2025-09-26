@@ -1,5 +1,6 @@
-| Group |  Parameter                    | Type   | Units    | Default Value                | Required  | Description                                       | Notes                                      |
-|:-----:|:-----------------------------:|:------:|:--------:|:----------------------------:|:---------:|:-------------------------------------------------:|:------------------------------------------:|
-|       | node_name                     | string | -        | ControlBoardBridgeSubscriber | No        | Set the name for ROS node                         | must not start with a leading '/'          |
-|       | joint_state_input_topic_name  | string | -        |   -                          | Yes       | Specify the name of the FT topics to connect      | Each element must start with a leading '/' |
-|       | joint_state_output_topic_name | string | -        |   -                          | Yes       | Specify the name of the IMU topics to connect     | Each element must start with a leading '/' |
+| Group |  Parameter                    | Type   | Units    | Default Value                | Required  | Description                                                              | Notes                             |
+|:-----:|:-----------------------------:|:------:|:--------:|:----------------------------:|:---------:|:------------------------------------------------------------------------:|:---------------------------------:|
+|       | node_name                     | string | -        | ControlBoardBridgeSubscriber | No        | Set the name for ROS node                                                | must not start with a leading '/' |
+|       | joint_state_topic_name        | string | -        |   -                          | Yes       | Specify the name of the joint state topic to connect                     | The message type is JointState    |
+|       | motor_state_topic_name        | string | -        |   -                          | Yes       | Specify the name of the motor state topic to connect                     | The message type is JointState    |
+|       | joint_references_topic_name   | string | -        |   -                          | Yes       | Specify the name of the FT topic to open to publish the joint references | The message type is JointState    |

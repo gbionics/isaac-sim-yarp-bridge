@@ -7,6 +7,8 @@
 YARP_DECLARE_LOG_COMPONENT(CB)
 YARP_LOG_COMPONENT(CB, "yarp.device.IsaacSimControlBoardNWCROS2")
 
+constexpr double rad2deg = 180.0 / M_PI;
+
 yarp::dev::IsaacSimControlBoardNWCROS2::~IsaacSimControlBoardNWCROS2()
 {
     close();
@@ -28,7 +30,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::open(yarp::os::Searchable& config)
         rclcpp::init(0, nullptr);
     }
 
-    m_node = std::make_shared<CBNode>(m_paramsParser.m_node_name, m_paramsParser.m_joint_state_input_topic_name, this);
+    m_node = std::make_shared<CBNode>(m_paramsParser.m_node_name,
+                                      m_paramsParser.m_joint_state_topic_name,
+                                      m_paramsParser.m_motor_state_topic_name,
+                                      this);
     m_executor = std::make_unique<rclcpp::executors::MultiThreadedExecutor>();
     m_executor->add_node(m_node);
     m_executorThread = std::thread([this]() { m_executor->spin(); });
@@ -157,15 +162,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getAxes(int* ax)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getAxes] ";
-    if (!m_measurements.valid.load())
+    if (!m_jointState.valid.load())
     {
         yCError(CB) << errorPrefix << "No valid data received yet.";
         return false;
     }
 
-    std::lock_guard<std::mutex> lock_measurements(m_measurements.mutex);
+    std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
 
-    *ax = static_cast<int>(m_measurements.name.size());
+    *ax = static_cast<int>(m_jointState.name.size());
     return true;
 }
 
@@ -347,19 +352,19 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getEncoder(int j, double* v)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getEncoder] ";
-    if (!m_measurements.valid.load())
+    if (!m_jointState.valid.load())
     {
         yCError(CB) << errorPrefix << "No valid data received yet.";
         return false;
     }
 
-    std::lock_guard<std::mutex> lock_measurements(m_measurements.mutex);
-    if (j < 0 || j >= static_cast<int>(m_measurements.position.size()))
+    std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
+    if (j < 0 || j >= static_cast<int>(m_jointState.position.size()))
     {
-        yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_measurements.position.size() - 1 << "]";
+        yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_jointState.position.size() - 1 << "]";
         return false;
     }
-    *v = m_measurements.position[j];
+    *v = m_jointState.position[j];
     return true;
 }
 
@@ -367,14 +372,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getEncoders(double* encs)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getEncoders] ";
-    if (!m_measurements.valid.load())
+    if (!m_jointState.valid.load())
     {
         yCError(CB) << errorPrefix << "No valid data received yet.";
         return false;
     }
 
-    std::lock_guard<std::mutex> lock_measurements(m_measurements.mutex);
-    std::copy(m_measurements.position.begin(), m_measurements.position.end(), encs);
+    std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
+    std::copy(m_jointState.position.begin(), m_jointState.position.end(), encs);
     return true;
 }
 
@@ -382,18 +387,18 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getEncodersTimed(double* encs, doub
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getEncodersTimed] ";
-    if (!m_measurements.valid.load())
+    if (!m_jointState.valid.load())
     {
         yCError(CB) << errorPrefix << "No valid data received yet.";
         return false;
     }
 
-    std::lock_guard<std::mutex> lock_measurements(m_measurements.mutex);
+    std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
 
-    std::copy(m_measurements.position.begin(), m_measurements.position.end(), encs);
+    std::copy(m_jointState.position.begin(), m_jointState.position.end(), encs);
 
     // Copy in timestamp a vector of size equal to the number of joints and equal to the timestamp of the measurement
-    std::fill(t, t + m_measurements.position.size(), m_measurements.timestamp);
+    std::fill(t, t + m_jointState.position.size(), m_jointState.timestamp);
 
     return true;
 }
@@ -402,21 +407,21 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getEncoderTimed(int j, double* v, d
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getEncoderTimed] ";
-    if (!m_measurements.valid.load())
+    if (!m_jointState.valid.load())
     {
         yCError(CB) << errorPrefix << "No valid data received yet.";
         return false;
     }
 
-    std::lock_guard<std::mutex> lock_measurements(m_measurements.mutex);
+    std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
 
-    if (j < 0 || j >= static_cast<int>(m_measurements.position.size()))
+    if (j < 0 || j >= static_cast<int>(m_jointState.position.size()))
     {
-        yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_measurements.position.size() - 1 << "]";
+        yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_jointState.position.size() - 1 << "]";
         return false;
     }
-    *v = m_measurements.position[j];
-    *t = m_measurements.timestamp;
+    *v = m_jointState.position[j];
+    *t = m_jointState.timestamp;
     return true;
 }
 
@@ -424,20 +429,20 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getEncoderSpeed(int j, double* sp)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getEncoderSpeed] ";
-    if (!m_measurements.valid.load())
+    if (!m_jointState.valid.load())
     {
         yCError(CB) << errorPrefix << "No valid data received yet.";
         return false;
     }
 
-    std::lock_guard<std::mutex> lock_measurements(m_measurements.mutex);
+    std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
 
-    if (j < 0 || j >= static_cast<int>(m_measurements.velocity.size()))
+    if (j < 0 || j >= static_cast<int>(m_jointState.velocity.size()))
     {
-        yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_measurements.velocity.size() - 1 << "]";
+        yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_jointState.velocity.size() - 1 << "]";
         return false;
     }
-    *sp = m_measurements.velocity[j];
+    *sp = m_jointState.velocity[j];
     return true;
 }
 
@@ -445,15 +450,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getEncoderSpeeds(double* spds)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getEncoderSpeeds] ";
-    if (!m_measurements.valid.load())
+    if (!m_jointState.valid.load())
     {
         yCError(CB) << errorPrefix << "No valid data received yet.";
         return false;
     }
 
-    std::lock_guard<std::mutex> lock_measurements(m_measurements.mutex);
+    std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
 
-    std::copy(m_measurements.velocity.begin(), m_measurements.velocity.end(), spds);
+    std::copy(m_jointState.velocity.begin(), m_jointState.velocity.end(), spds);
     return true;
 }
 
@@ -471,96 +476,189 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getEncoderAccelerations(double* acc
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getNumberOfMotorEncoders(int* num)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getNumberOfMotorEncoders] ";
+    if (!m_motorState.valid.load())
+    {
+        yCError(CB) << errorPrefix << "No valid data received yet.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock_measurements(m_motorState.mutex);
+    *num = static_cast<int>(m_motorState.name.size());
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::resetMotorEncoder(int m)
 {
+    yCError(CB) << "[resetMotorEncoder] It is not possible to reset a motor encoder in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::resetMotorEncoders()
 {
+    yCError(CB) << "[resetMotorEncoders] It is not possible to reset motor encoders in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setMotorEncoderCountsPerRevolution(int m, const double cpr)
 {
+    //TODO: this could be the gear ratio
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncoderCountsPerRevolution(int m, double* cpr)
 {
+    //TODO: this could be the gear ratio
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setMotorEncoder(int m, const double val)
 {
+    yCError(CB) << "[setMotorEncoder] It is not possible to set a motor encoder in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setMotorEncoders(const double* vals)
 {
+    yCError(CB) << "[setMotorEncoders] It is not possible to set motor encoders in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncoder(int m, double* v)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getMotorEncoder] ";
+    if (!m_motorState.valid.load())
+    {
+        yCError(CB) << errorPrefix << "No valid data received yet.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock_measurements(m_motorState.mutex);
+    if (m < 0 || m >= static_cast<int>(m_motorState.position.size()))
+    {
+        yCError(CB) << errorPrefix << "Index" << m << "out of range. Valid range is [0," << m_motorState.position.size() - 1 << "]";
+        return false;
+    }
+    *v = m_motorState.position[m];
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncoders(double* encs)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getMotorEncoders] ";
+    if (!m_motorState.valid.load())
+    {
+        yCError(CB) << errorPrefix << "No valid data received yet.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock_measurements(m_motorState.mutex);
+    std::copy(m_motorState.position.begin(), m_motorState.position.end(), encs);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncodersTimed(double* encs, double* t)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getMotorEncodersTimed] ";
+    if (!m_motorState.valid.load())
+    {
+        yCError(CB) << errorPrefix << "No valid data received yet.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock_measurements(m_motorState.mutex);
+    std::copy(m_motorState.position.begin(), m_motorState.position.end(), encs);
+    // Copy in timestamp a vector of size equal to the number of motors and equal to the timestamp of the measurement
+    std::fill(t, t + m_motorState.position.size(), m_motorState.timestamp);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncoderTimed(int m, double* v, double* t)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getMotorEncoderTimed] ";
+    if (!m_motorState.valid.load())
+    {
+        yCError(CB) << errorPrefix << "No valid data received yet.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock_measurements(m_motorState.mutex);
+    if (m < 0 || m >= static_cast<int>(m_motorState.position.size()))
+    {
+        yCError(CB) << errorPrefix << "Index" << m << "out of range. Valid range is [0," << m_motorState.position.size() - 1 << "]";
+        return false;
+    }
+    *v = m_motorState.position[m];
+    *t = m_motorState.timestamp;
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncoderSpeed(int m, double* sp)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getMotorEncoderSpeed] ";
+    if (!m_motorState.valid.load())
+    {
+        yCError(CB) << errorPrefix << "No valid data received yet.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock_measurements(m_motorState.mutex);
+    if (m < 0 || m >= static_cast<int>(m_motorState.velocity.size()))
+    {
+        yCError(CB) << errorPrefix << "Index" << m << "out of range. Valid range is [0," << m_motorState.velocity.size() - 1 << "]";
+        return false;
+    }
+    *sp = m_motorState.velocity[m];
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncoderSpeeds(double* spds)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getMotorEncoderSpeeds] ";
+    if (!m_motorState.valid.load())
+    {
+        yCError(CB) << errorPrefix << "No valid data received yet.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock_measurements(m_motorState.mutex);
+    std::copy(m_motorState.velocity.begin(), m_motorState.velocity.end(), spds);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncoderAcceleration(int m, double* acc)
 {
+    yCError(CB) << "[getMotorEncoderAcceleration] It is not possible to get motor encoder acceleration in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncoderAccelerations(double* accs)
 {
+    yCError(CB) << "[getMotorEncoderAccelerations] It is not possible to get motor encoder accelerations in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::enableAmp(int j)
 {
+    yCError(CB) << "[enableAmp] It is not possible to enable an amplifier in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::disableAmp(int j)
 {
+    yCError(CB) << "[disableAmp] It is not possible to disable an amplifier in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getAmpStatus(int* st)
 {
+    yCError(CB) << "[getAmpStatus] It is not possible to get amplifier status in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getAmpStatus(int j, int* v)
 {
+    yCError(CB) << "[getAmpStatus] It is not possible to get amplifier status in Isaac sim.";
     return false;
 }
 
@@ -576,41 +674,49 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getMaxCurrent(int j, double* v)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getNominalCurrent(int m, double* val)
 {
+    yCError(CB) << "[getNominalCurrent] It is not possible to get nominal current in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setNominalCurrent(int m, const double val)
 {
+    yCError(CB) << "[setNominalCurrent] It is not possible to set nominal current in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPeakCurrent(int m, double* val)
 {
+    yCError(CB) << "[getPeakCurrent] It is not possible to get peak current in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPeakCurrent(int m, const double val)
 {
+    yCError(CB) << "[setPeakCurrent] It is not possible to set peak current in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPWM(int m, double* val)
 {
+    yCError(CB) << "[getPWM] It is not possible to get PWM in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPWMLimit(int m, double* val)
 {
+    yCError(CB) << "[getPWMLimit] It is not possible to get PWM limit in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPWMLimit(int m, const double val)
 {
+    yCError(CB) << "[setPWMLimit] It is not possible to set PWM limit in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPowerSupplyVoltage(int m, double* val)
 {
+    yCError(CB) << "[getPowerSupplyVoltage] It is not possible to get power supply voltage in Isaac sim.";
     return false;
 }
 
@@ -731,21 +837,25 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getNumberOfMotors(int* num)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getTemperature(int m, double* val)
 {
+    yCErrorOnce(CB) << "[getTemperature] It is not possible to get temperature in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getTemperatures(double* vals)
 {
+    yCErrorOnce(CB) << "[getTemperatures] It is not possible to get temperatures in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getTemperatureLimit(int m, double* val)
 {
+    yCError(CB) << "[getTemperatureLimit] It is not possible to get temperature limit in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setTemperatureLimit(int m, const double val)
 {
+    yCError(CB) << "[setTemperatureLimit] It is not possible to set temperature limit in Isaac sim.";
     return false;
 }
 
@@ -763,19 +873,19 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getAxisName(int j, std::string& nam
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getAxisName] ";
-    if (!m_measurements.valid.load())
+    if (!m_jointState.valid.load())
     {
         yCError(CB) << errorPrefix << "No valid data received yet.";
         return false;
     }
 
-    std::lock_guard<std::mutex> lock_measurements(m_measurements.mutex);
-    if (j < 0 || j >= static_cast<int>(m_measurements.name.size()))
+    std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
+    if (j < 0 || j >= static_cast<int>(m_jointState.name.size()))
     {
-        yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_measurements.name.size() - 1 << "]";
+        yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_jointState.name.size() - 1 << "]";
         return false;
     }
-    name = m_measurements.name[j];
+    name = m_jointState.name[j];
     return true;
 }
 
@@ -833,18 +943,18 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTorque(int j, double* t)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getTorque] ";
-    if (!m_measurements.valid.load())
+    if (!m_jointState.valid.load())
     {
         yCError(CB) << errorPrefix << "No valid data received yet.";
         return false;
     }
-    std::lock_guard<std::mutex> lock_measurements(m_measurements.mutex);
-    if (j < 0 || j >= static_cast<int>(m_measurements.effort.size()))
+    std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
+    if (j < 0 || j >= static_cast<int>(m_jointState.effort.size()))
     {
-        yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_measurements.effort.size() - 1 << "]";
+        yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_jointState.effort.size() - 1 << "]";
         return false;
     }
-    *t = m_measurements.effort[j];
+    *t = m_jointState.effort[j];
     return true;
 }
 
@@ -852,13 +962,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTorques(double* t)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getTorques] ";
-    if (!m_measurements.valid.load())
+    if (!m_jointState.valid.load())
     {
         yCError(CB) << errorPrefix << "No valid data received yet.";
         return false;
     }
-    std::lock_guard<std::mutex> lock_measurements(m_measurements.mutex);
-    std::copy(m_measurements.effort.begin(), m_measurements.effort.end(), t);
+    std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
+    std::copy(m_jointState.effort.begin(), m_jointState.effort.end(), t);
     return true;
 }
 
@@ -1004,42 +1114,71 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setInteractionModes(yarp::dev::Inte
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefDutyCycle(int m, double ref)
 {
+    yCError(CB) << "[setRefDutyCycle] It is not possible to set a reference duty cycle in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefDutyCycles(const double* refs)
 {
+    yCError(CB) << "[setRefDutyCycles] It is not possible to set reference duty cycles in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefDutyCycle(int m, double* ref)
 {
+    yCErrorOnce(CB) << "[getRefDutyCycle] It is not possible to get a reference duty cycle in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefDutyCycles(double* refs)
 {
+    yCErrorOnce(CB) << "[getRefDutyCycles] It is not possible to get reference duty cycles in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getDutyCycle(int m, double* val)
 {
+    yCErrorOnce(CB) << "[getDutyCycle] It is not possible to get a duty cycle in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getDutyCycles(double* vals)
 {
+    yCErrorOnce(CB) << "[getDutyCycles] It is not possible to get duty cycles in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrent(int m, double* curr)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getCurrent] ";
+    if (!m_motorState.valid.load())
+    {
+        yCError(CB) << errorPrefix << "No valid data received yet.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock_measurements(m_motorState.mutex);
+    if (m < 0 || m >= static_cast<int>(m_motorState.effort.size()))
+    {
+        yCError(CB) << errorPrefix << "Index" << m << "out of range. Valid range is [0," << m_motorState.effort.size() - 1 << "]";
+        return false;
+    }
+    *curr = m_motorState.effort[m];
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrents(double* currs)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getCurrents] ";
+    if (!m_motorState.valid.load())
+    {
+        yCError(CB) << errorPrefix << "No valid data received yet.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock_measurements(m_motorState.mutex);
+    std::copy(m_motorState.effort.begin(), m_motorState.effort.end(), currs);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrentRange(int m, double* min, double* max)
@@ -1077,35 +1216,51 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefCurrent(int m, double* curr)
     return false;
 }
 
-void yarp::dev::IsaacSimControlBoardNWCROS2::updateMeasurements(const sensor_msgs::msg::JointState::ConstSharedPtr msg)
+void yarp::dev::IsaacSimControlBoardNWCROS2::updateJointMeasurements(const sensor_msgs::msg::JointState::ConstSharedPtr msg)
 {
-    std::lock_guard<std::mutex> lock(m_measurements.mutex);
-    constexpr double rad2deg = 180.0 / M_PI;
+    std::lock_guard<std::mutex> lock(m_jointState.mutex);
 
-    m_measurements.name = msg->name;
-
-    m_measurements.position = msg->position;
-    for (auto& pos : m_measurements.position) {
-        pos *= rad2deg;
-    }
-
-    m_measurements.velocity = msg->velocity;
-    for (auto& vel : m_measurements.velocity) {
-        vel *= rad2deg;
-    }
-
-    m_measurements.effort = msg->effort;
-    m_measurements.timestamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
-    m_measurements.valid = true;
+    m_jointState.convert_to_vectors(msg);
 }
 
-yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::CBNode(const std::string& node_name, const std::string& topic_name, IsaacSimControlBoardNWCROS2* parent)
+void yarp::dev::IsaacSimControlBoardNWCROS2::updateMotorMeasurements(const sensor_msgs::msg::JointState::ConstSharedPtr msg)
+{
+    std::lock_guard<std::mutex> lock(m_motorState.mutex);
+
+    m_motorState.convert_to_vectors(msg);
+}
+
+void yarp::dev::IsaacSimControlBoardNWCROS2::JointsState::convert_to_vectors(const sensor_msgs::msg::JointState::ConstSharedPtr& js)
+{
+    name = js->name;
+    position = js->position;
+    for (auto& pos : position) {
+        pos *= rad2deg;
+    }
+    velocity = js->velocity;
+    for (auto& vel : velocity) {
+        vel *= rad2deg;
+    }
+    effort = js->effort;
+    timestamp = js->header.stamp.sec + js->header.stamp.nanosec * 1e-9;
+    valid = true;
+}
+
+yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::CBNode(const std::string& node_name,
+                                                       const std::string& joint_state_topic_name,
+                                                       const std::string& motor_state_topic_name,
+                                                       IsaacSimControlBoardNWCROS2* parent)
 : rclcpp::Node(node_name)
 {
-    m_subscription = this->create_subscription<sensor_msgs::msg::JointState>(
-        topic_name, 10,
+    m_jointStateSubscription = this->create_subscription<sensor_msgs::msg::JointState>(
+        joint_state_topic_name, 10,
         [parent](const sensor_msgs::msg::JointState::ConstSharedPtr msg) {
-        parent->updateMeasurements(msg);
+        parent->updateJointMeasurements(msg);
+    });
+    m_motorStateSubscription = this->create_subscription<sensor_msgs::msg::JointState>(
+        motor_state_topic_name, 10,
+        [parent](const sensor_msgs::msg::JointState::ConstSharedPtr msg) {
+        parent->updateMotorMeasurements(msg);
     });
 }
 
