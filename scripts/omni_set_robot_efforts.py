@@ -13,6 +13,7 @@
 # Expects four + nc inputs, where nc is the number of control boards:
 # - robot_prim [target] The robot prim. Read only during initialization
 # - joint_names [token[]] The names of the joints to set the gains for. Read only during initialization
+# - desired_joint_damping [double[]] The desired joints damping. Read only during initialization. If not available, the node will set all joints damping to zero
 # - control_board_names [token[]] The names of the control boards. Read only during initialization
 # - "control_board_X"_desired_efforts [double[]] The desired efforts for control board X. All the input efforts are stacked according to the order of the control boards
 
@@ -26,6 +27,7 @@ class SetRobotEffortsState:
         self.initialized = False
         self.robot = None
         self.robot_joint_indices = []
+        self.desired_joint_damping = []
         self.control_board_names = []
         self.exec_in_counter = 0
 
@@ -76,12 +78,16 @@ def initialize_and_reset_gains(db: og.Database):
     if not robot or not joint_indices:
         db.log_error("Robot or joint indices are not properly initialized")
         return
+    damping = db.per_instance_state.desired_joint_damping
+    if damping is None or len(damping) != len(joint_indices):
+        db.log_error("Desired joint damping is not properly initialized")
+        return
 
     robot.initialize()
     robot.set_effort_modes(mode="force", joint_indices=joint_indices)
     robot.set_gains(
         kps=[0.0] * len(joint_indices),
-        kds=[0.0] * len(joint_indices),
+        kds=damping,
         joint_indices=joint_indices,
     )
 
@@ -116,6 +122,17 @@ def setup_robot_efforts(db: og.Database):
         db.per_instance_state.initialized = False
         db.log_error("Either the robot or the joint indices are invalid")
         return
+
+    if hasattr(db.inputs, "desired_joint_damping"):
+        db.per_instance_state.desired_joint_damping = db.inputs.desired_joint_damping
+        if len(db.per_instance_state.desired_joint_damping) != len(robot_joint_indices):
+            db.log_error(
+                "Length of desired_joint_damping does not match number of joints"
+            )
+            db.per_instance_state.initialized = False
+            return
+    else:
+        db.per_instance_state.desired_joint_damping = [0.0] * len(robot_joint_indices)
 
     db.per_instance_state.robot = robot
     db.per_instance_state.robot_joint_indices = robot_joint_indices
@@ -162,12 +179,16 @@ def compute(db: og.Database) -> bool:
     state.exec_in_counter = 0
 
     kps, kds = robot.get_gains(joint_indices=joint_indices)
+    desired_kds = db.per_instance_state.desired_joint_damping
     if (
         kps is None
         or kds is None
-        or any(kp != 0.0 or kd != 0.0 for kp, kd in zip(kps.squeeze(), kds.squeeze()))
+        or any(
+            kp != 0.0 or kd != desired_kd
+            for kp, kd, desired_kd in zip(kps.squeeze(), kds.squeeze(), desired_kds)
+        )
     ):
-        db.log_warning("Gains are not zero, reinitializing")
+        db.log_warning("Gains are not as expected, reinitializing")
         initialize_and_reset_gains(db)
         return False
 

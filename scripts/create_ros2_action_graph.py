@@ -1711,6 +1711,7 @@ set_robot_efforts_script_code = """
 # Expects four + nc inputs, where nc is the number of control boards:
 # - robot_prim [target] The robot prim. Read only during initialization
 # - joint_names [token[]] The names of the joints to set the gains for. Read only during initialization
+# - desired_joint_damping [double[]] The desired joints damping. Read only during initialization. If not available, the node will set all joints damping to zero
 # - control_board_names [token[]] The names of the control boards. Read only during initialization
 # - "control_board_X"_desired_efforts [double[]] The desired efforts for control board X. All the input efforts are stacked according to the order of the control boards
 
@@ -1724,6 +1725,7 @@ class SetRobotEffortsState:
         self.initialized = False
         self.robot = None
         self.robot_joint_indices = []
+        self.desired_joint_damping = []
         self.control_board_names = []
         self.exec_in_counter = 0
 
@@ -1774,12 +1776,16 @@ def initialize_and_reset_gains(db: og.Database):
     if not robot or not joint_indices:
         db.log_error("Robot or joint indices are not properly initialized")
         return
+    damping = db.per_instance_state.desired_joint_damping
+    if damping is None or len(damping) != len(joint_indices):
+        db.log_error("Desired joint damping is not properly initialized")
+        return
 
     robot.initialize()
     robot.set_effort_modes(mode="force", joint_indices=joint_indices)
     robot.set_gains(
         kps=[0.0] * len(joint_indices),
-        kds=[0.0] * len(joint_indices),
+        kds=damping,
         joint_indices=joint_indices,
     )
 
@@ -1814,6 +1820,17 @@ def setup_robot_efforts(db: og.Database):
         db.per_instance_state.initialized = False
         db.log_error("Either the robot or the joint indices are invalid")
         return
+
+    if hasattr(db.inputs, "desired_joint_damping"):
+        db.per_instance_state.desired_joint_damping = db.inputs.desired_joint_damping
+        if len(db.per_instance_state.desired_joint_damping) != len(robot_joint_indices):
+            db.log_error(
+                "Length of desired_joint_damping does not match number of joints"
+            )
+            db.per_instance_state.initialized = False
+            return
+    else:
+        db.per_instance_state.desired_joint_damping = [0.0] * len(robot_joint_indices)
 
     db.per_instance_state.robot = robot
     db.per_instance_state.robot_joint_indices = robot_joint_indices
@@ -1860,12 +1877,16 @@ def compute(db: og.Database) -> bool:
     state.exec_in_counter = 0
 
     kps, kds = robot.get_gains(joint_indices=joint_indices)
+    desired_kds = db.per_instance_state.desired_joint_damping
     if (
         kps is None
         or kds is None
-        or any(kp != 0.0 or kd != 0.0 for kp, kd in zip(kps.squeeze(), kds.squeeze()))
+        or any(
+            kp != 0.0 or kd != desired_kd
+            for kp, kd, desired_kd in zip(kps.squeeze(), kds.squeeze(), desired_kds)
+        )
     ):
-        db.log_warning("Gains are not zero, reinitializing")
+        db.log_warning("Gains are not as expected, reinitializing")
         initialize_and_reset_gains(db)
         return False
 
@@ -1902,6 +1923,7 @@ def compute(db: og.Database) -> bool:
 class ControlBoard:
     name: str
     joint_names: list[str]
+    joint_damping: list[float]
     position_p_gains: list[float]
     position_i_gains: list[float]
     position_d_gains: list[float]
@@ -2232,9 +2254,11 @@ def create_control_board_compounds(graph_keys, settings):
 
     set_efforts_name = "set_robot_efforts"
     all_joints = []
+    damping = []
     control_boards = []
     for cb in settings.control_boards:
         all_joints.extend(cb.joint_names)
+        damping.extend(cb.joint_damping)
         control_boards.append(cb.name)
 
     set_efforts_actions = {
@@ -2244,12 +2268,14 @@ def create_control_board_compounds(graph_keys, settings):
         graph_keys.CREATE_ATTRIBUTES: [
             (set_efforts_name + ".inputs:robot_prim", "target"),
             (set_efforts_name + ".inputs:joint_names", "token[]"),
+            (set_efforts_name + ".inputs:desired_joint_damping", "double[]"),
             (set_efforts_name + ".inputs:control_board_names", "token[]"),
         ],
         graph_keys.SET_VALUES: [
             (set_efforts_name + ".inputs:script", set_robot_efforts_script_code),
             (set_efforts_name + ".inputs:robot_prim", settings.robot_path),
             (set_efforts_name + ".inputs:joint_names", all_joints),
+            (set_efforts_name + ".inputs:desired_joint_damping", damping),
             (set_efforts_name + ".inputs:control_board_names", control_boards),
         ],
         graph_keys.CONNECT: [],
@@ -2772,6 +2798,7 @@ s = Settings(
         ControlBoard(
             name="head",
             joint_names=["neck_pitch", "neck_roll", "neck_yaw", "camera_tilt"],
+            joint_damping=[1.0, 1.0, 1.0, 1.0],
             position_p_gains=[1.745, 1.745, 1.745, 1.745],
             position_i_gains=[0.003, 0.003, 0.003, 0.003],
             position_d_gains=[0.122, 0.122, 0.122, 0.122],
@@ -2796,12 +2823,13 @@ s = Settings(
         ControlBoard(
             name="torso",
             joint_names=["torso_roll", "torso_pitch", "torso_yaw"],
+            joint_damping=[1.0, 1.0, 1.0],
             position_p_gains=[70.0, 70.0, 70.0],
             position_i_gains=[0.17, 0.17, 0.17],
             position_d_gains=[0.15, 0.15, 0.15],
             position_max_integral=[9999.0, 9999.0, 9999.0],
             position_max_output=[9999.0, 9999.0, 9999.0],
-            position_max_error=[0.0, 0.0, 0.0],
+            position_max_error=[9999.0, 9999.0, 9999.0],
             velocity_p_gains=[8.726, 8.726, 8.726],
             velocity_i_gains=[0.002, 0.002, 0.002],
             velocity_d_gains=[0.035, 0.035, 0.035],
@@ -2827,6 +2855,7 @@ s = Settings(
                 "l_ankle_pitch",
                 "l_ankle_roll",
             ],
+            joint_damping=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             position_p_gains=[70.0, 70.0, 40.0, 100.0, 100.0, 100.0],
             position_i_gains=[0.17, 0.17, 0.35, 0.35, 0.35, 0.35],
             position_d_gains=[0.15, 0.15, 0.35, 0.15, 0.15, 0.15],
@@ -2858,6 +2887,7 @@ s = Settings(
                 "r_ankle_pitch",
                 "r_ankle_roll",
             ],
+            joint_damping=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             position_p_gains=[70.0, 70.0, 40.0, 100.0, 100.0, 100.0],
             position_i_gains=[0.17, 0.17, 0.35, 0.35, 0.35, 0.35],
             position_d_gains=[0.15, 0.15, 0.35, 0.15, 0.15, 0.15],
@@ -2890,6 +2920,7 @@ s = Settings(
                 "l_wrist_roll",
                 "l_wrist_pitch",
             ],
+            joint_damping=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             position_p_gains=[5.745, 5.745, 5.745, 1.745, 1.745, 1.745, 1.745],
             position_i_gains=[0.174, 0.174, 0.174, 0.174, 0.174, 0.174, 0.0],
             position_d_gains=[0.174, 0.174, 0.174, 0.174, 0.174, 0.174, 0.0],
@@ -2922,6 +2953,7 @@ s = Settings(
                 "r_wrist_roll",
                 "r_wrist_pitch",
             ],
+            joint_damping=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             position_p_gains=[5.745, 5.745, 5.745, 1.745, 1.745, 1.745, 1.745],
             position_i_gains=[0.174, 0.174, 0.174, 0.174, 0.174, 0.174, 0.0],
             position_d_gains=[0.174, 0.174, 0.174, 0.174, 0.174, 0.174, 0.0],
@@ -2959,6 +2991,7 @@ s = Settings(
                 "l_pinkie_prox",
                 "l_pinkie_dist",
             ],
+            joint_damping=[1.0] * 12,
             position_p_gains=[5.0] * 12,
             position_i_gains=[0.0] * 12,
             position_d_gains=[0.0] * 12,
@@ -2996,6 +3029,7 @@ s = Settings(
                 "r_pinkie_prox",
                 "r_pinkie_dist",
             ],
+            joint_damping=[1.0] * 12,
             position_p_gains=[5.0] * 12,
             position_i_gains=[0.0] * 12,
             position_d_gains=[0.0] * 12,
