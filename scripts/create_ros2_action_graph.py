@@ -464,12 +464,12 @@ class ControlBoardState:
 
         # Get joint limits from the robot
         dof_limits = robot.get_dof_limits()
-        self.max_positions = [dof_limits[0][j][0] for j in joint_indices]
-        self.min_positions = [dof_limits[0][j][1] for j in joint_indices]
+        self.min_positions = [dof_limits[0][j][0] for j in joint_indices]
+        self.max_positions = [dof_limits[0][j][1] for j in joint_indices]
         self.max_velocities = robot.get_joint_max_velocities(
             joint_indices=joint_indices
-        )
-        self.max_efforts = robot.get_max_efforts(joint_indices=joint_indices)
+        ).squeeze()
+        self.max_efforts = robot.get_max_efforts(joint_indices=joint_indices).squeeze()
 
         # Get the home positions from the robot
         default_state = robot.get_joints_default_state()
