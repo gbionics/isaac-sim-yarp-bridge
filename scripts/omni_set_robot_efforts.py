@@ -161,6 +161,16 @@ def compute(db: og.Database) -> bool:
         return True
     state.exec_in_counter = 0
 
+    kps, kds = robot.get_gains(joint_indices=joint_indices)
+    if (
+        kps is None
+        or kds is None
+        or any(kp != 0.0 or kd != 0.0 for kp, kd in zip(kps.squeeze(), kds.squeeze()))
+    ):
+        db.log_warning("Gains are not zero, reinitializing")
+        initialize_and_reset_gains(db)
+        return False
+
     measured_efforts = robot.get_measured_joint_efforts(joint_indices=joint_indices)
     if measured_efforts is None:
         db.log_warning("Trying to reinitialize the robot efforts control")
