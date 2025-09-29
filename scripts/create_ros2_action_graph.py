@@ -1594,7 +1594,7 @@ def compute(db: og.Database):
 
     measured_positions = script_state.robot.get_joint_positions(
         joint_indices=script_state.robot_joint_indices
-    )
+    ).squeeze()
     if measured_positions is None:
         db.log_warning(
             f"Failed to get joint positions in {script_state.robot.name}. "
@@ -1605,14 +1605,14 @@ def compute(db: og.Database):
 
     measured_velocities = script_state.robot.get_joint_velocities(
         joint_indices=script_state.robot_joint_indices
-    )
+    ).squeeze()
     if measured_velocities is None:
         db.log_warning(f"Failed to get joint velocities in {script_state.robot.name}. ")
         return False
 
     measured_efforts = script_state.robot.get_measured_joint_efforts(
         joint_indices=script_state.robot_joint_indices
-    )
+    ).squeeze()
     if measured_efforts is None:
         db.log_warning(f"Failed to get joint efforts in {script_state.robot.name}. ")
         return False
