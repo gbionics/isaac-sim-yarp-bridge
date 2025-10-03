@@ -40,11 +40,13 @@ static const std::string is_motion_done_tag = "is_motion_done";
 static const std::string position_pid_enabled_tag = "position_pid_enabled";
 static const std::string position_pid_to_reset_tag = "position_pid_to_reset";
 static const std::string position_pid_to_stop_tag = "position_pid_to_stop";
+// These below are not used since the pid type does not consider the direct mode
 static const std::string position_direct_pid_references_tag = "position_direct_pid_references";
 static const std::string position_direct_pid_errors_tag = "position_direct_pid_errors";
 static const std::string position_direct_pid_outputs_tag = "position_direct_pid_outputs";
 static const std::string position_direct_pid_enabled_tag = "position_direct_pid_enabled";
 static const std::string position_direct_pid_to_reset_tag = "position_direct_pid_to_reset";
+//
 static const std::string velocity_pid_references_tag = "velocity_pid_references";
 static const std::string velocity_pid_errors_tag = "velocity_pid_errors";
 static const std::string velocity_pid_outputs_tag = "velocity_pid_outputs";
@@ -149,19 +151,20 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPid(const yarp::dev::PidControlT
         auto results = m_node->setParameters(params);
         if (results.size() != params.size())
         {
-            yCError(CB) << errorPrefix << "Error while setting position pid parameters.";
+            yCError(CB) << errorPrefix << "Error while setting position pid (" << j << ") parameters";
             return false;
         }
-        bool failed = false;
-        for (const auto& res : results)
+        bool success = true;
+        for (size_t i = 0; i < results.size(); ++i)
         {
-            if (!res.successful)
+            if (!results[i].successful)
             {
-                yCError(CB) << errorPrefix << "Error while setting position pid parameter:" << res.reason;
-                failed = true;
+                yCError(CB) << errorPrefix << "Error while setting position pid parameter"
+                                           << params[i].name + ":" << results[i].reason;
+                success = false;
             }
         }
-        return failed;
+        return success;
     }
     if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
     {
@@ -194,19 +197,20 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPid(const yarp::dev::PidControlT
         auto results = m_node->setParameters(params);
         if (results.size() != params.size())
         {
-            yCError(CB) << errorPrefix << "Error while setting velocity pid parameters.";
+            yCError(CB) << errorPrefix << "Error while setting velocity pid (" << j << ")  parameters.";
             return false;
         }
-        bool failed = false;
-        for (const auto& res : results)
+        bool success = true;
+        for (size_t i = 0; i < results.size(); ++i)
         {
-            if (!res.successful)
+            if (!results[i].successful)
             {
-                yCError(CB) << errorPrefix << "Error while setting velocity pid parameter:" << res.reason;
-                failed = true;
+                yCError(CB) << errorPrefix << "Error while setting velocity pid parameter"
+                    << params[i].name + ":" << results[i].reason;
+                success = false;
             }
         }
-        return failed;
+        return success;
     }
     if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE ||
              pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
@@ -221,102 +225,1159 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPid(const yarp::dev::PidControlT
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPids(const yarp::dev::PidControlTypeEnum& pidtype, const yarp::dev::Pid* ps)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[setPids] ";
+
+    if (!m_jointState.valid.load())
+    {
+        yCError(CB) << errorPrefix << "No valid data received yet.";
+        return false;
+    }
+    size_t numberOfJoints = 0;
+    {
+        std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
+        numberOfJoints = m_jointState.name.size();
+
+    }
+
+    std::vector<rcl_interfaces::msg::Parameter> params;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        rcl_interfaces::msg::Parameter p_param;
+        p_param.name = position_p_gains_tag;
+        p_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+        p_param.value.double_array_value.resize(numberOfJoints);
+
+        rcl_interfaces::msg::Parameter i_param;
+        i_param.name = position_i_gains_tag;
+        i_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+        i_param.value.double_array_value.resize(numberOfJoints);
+
+        rcl_interfaces::msg::Parameter d_param;
+        d_param.name = position_d_gains_tag;
+        d_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+        d_param.value.double_array_value.resize(numberOfJoints);
+
+        rcl_interfaces::msg::Parameter max_integral_param;
+        max_integral_param.name = position_max_integral_tag;
+        max_integral_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+        max_integral_param.value.double_array_value.resize(numberOfJoints);
+
+        rcl_interfaces::msg::Parameter max_output_param;
+        max_output_param.name = position_max_output_tag;
+        max_output_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+        max_output_param.value.double_array_value.resize(numberOfJoints);
+
+
+        for (size_t j = 0; j < numberOfJoints; j++)
+        {
+            p_param.value.double_array_value[j] = ps[j].kp;
+            i_param.value.double_array_value[j] = ps[j].ki;
+            d_param.value.double_array_value[j] = ps[j].kd;
+            max_integral_param.value.double_array_value[j] = ps[j].max_int;
+            max_output_param.value.double_array_value[j] = ps[j].max_output;
+        }
+
+        params.push_back(p_param);
+        params.push_back(i_param);
+        params.push_back(d_param);
+        params.push_back(max_integral_param);
+        params.push_back(max_output_param);
+
+        auto results = m_node->setParameters(params);
+        if (results.size() != params.size())
+        {
+            yCError(CB) << errorPrefix << "Error while setting position pid parameters.";
+            return false;
+        }
+        bool success = true;
+        for (size_t i = 0; i < results.size(); ++i)
+        {
+            if (!results[i].successful)
+            {
+                yCError(CB) << errorPrefix << "Error while setting position pid parameter"
+                    << params[i].name + ":" << results[i].reason;
+                success = false;
+            }
+        }
+        return success;
+    }
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        rcl_interfaces::msg::Parameter p_param;
+        p_param.name = velocity_p_gains_tag;
+        p_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+        p_param.value.double_array_value.resize(numberOfJoints);
+
+        rcl_interfaces::msg::Parameter i_param;
+        i_param.name = velocity_i_gains_tag;
+        i_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+        i_param.value.double_array_value.resize(numberOfJoints);
+
+        rcl_interfaces::msg::Parameter d_param;
+        d_param.name = velocity_d_gains_tag;
+        d_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+        d_param.value.double_array_value.resize(numberOfJoints);
+
+        rcl_interfaces::msg::Parameter max_integral_param;
+        max_integral_param.name = velocity_max_integral_tag;
+        max_integral_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+        max_integral_param.value.double_array_value.resize(numberOfJoints);
+
+        rcl_interfaces::msg::Parameter max_output_param;
+        max_output_param.name = velocity_max_output_tag;
+        max_output_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+        max_output_param.value.double_array_value.resize(numberOfJoints);
+
+        for (size_t j = 0; j < numberOfJoints; j++)
+        {
+            p_param.value.double_array_value[j] = ps[j].kp;
+            i_param.value.double_array_value[j] = ps[j].ki;
+            d_param.value.double_array_value[j] = ps[j].kd;
+            max_integral_param.value.double_array_value[j] = ps[j].max_int;
+            max_output_param.value.double_array_value[j] = ps[j].max_output;
+        }
+
+        params.push_back(p_param);
+        params.push_back(i_param);
+        params.push_back(d_param);
+        params.push_back(max_integral_param);
+        params.push_back(max_output_param);
+
+        auto results = m_node->setParameters(params);
+        if (results.size() != params.size())
+        {
+            yCError(CB) << errorPrefix << "Error while setting velocity pid parameters.";
+            return false;
+        }
+        bool failed = false;
+        for (size_t i = 0; i < results.size(); ++i)
+        {
+            if (!results[i].successful)
+            {
+                yCError(CB) << errorPrefix << "Error while setting velocity pid parameter"
+                    << params[i].name + ":" << results[i].reason;
+                failed = true;
+            }
+        }
+        return failed;
+    }
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE ||
+        pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        yCWarning(CB) << errorPrefix << "Setting torque/current pid does not have any effect on Isaac Sim.";
+        return true;
+    }
+
+    yCError(CB) << errorPrefix << "Unknown pid type.";
+
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidReference(const yarp::dev::PidControlTypeEnum& pidtype, int j, double ref)
 {
+    // todo
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidReferences(const yarp::dev::PidControlTypeEnum& pidtype, const double* refs)
 {
+    // todo
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidErrorLimit(const yarp::dev::PidControlTypeEnum& pidtype, int j, double limit)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[setPidErrorLimit] ";
+    std::vector<rcl_interfaces::msg::Parameter> params;
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        rcl_interfaces::msg::Parameter max_error_param;
+        std::string suffix_tag = "[" + std::to_string(j) + "]";
+        max_error_param.name = position_max_error_tag + suffix_tag;
+        max_error_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE;
+        max_error_param.value.double_value = limit;
+        params.push_back(max_error_param);
+        auto results = m_node->setParameters(params);
+        if (results.size() != params.size())
+        {
+            yCError(CB) << errorPrefix << "Error while setting position pid (" << j << ") error limit.";
+            return false;
+        }
+        bool success = true;
+        for (const auto& res : results)
+        {
+            if (!res.successful)
+            {
+                yCError(CB) << errorPrefix << "Error while setting position pid (" << j << ") error limit parameter:" << res.reason;
+                success = false;
+            }
+        }
+        return success;
+    }
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        rcl_interfaces::msg::Parameter max_error_param;
+        std::string suffix_tag = "[" + std::to_string(j) + "]";
+        max_error_param.name = velocity_max_error_tag + suffix_tag;
+        max_error_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE;
+        max_error_param.value.double_value = limit;
+        params.push_back(max_error_param);
+        auto results = m_node->setParameters(params);
+        if (results.size() != params.size())
+        {
+            yCError(CB) << errorPrefix << "Error while setting velocity pid (" << j << ") error limit.";
+            return false;
+        }
+        bool success = true;
+        for (const auto& res : results)
+        {
+            if (!res.successful)
+            {
+                yCError(CB) << errorPrefix << "Error while setting velocity pid (" << j << ") error limit parameter:" << res.reason;
+                success = false;
+            }
+        }
+        return success;
+    }
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE ||
+        pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        yCWarning(CB) << errorPrefix << "Setting torque/current pid does not have any effect on Isaac Sim.";
+        return true;
+    }
+    yCError(CB) << errorPrefix << "Unknown pid type.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidErrorLimits(const yarp::dev::PidControlTypeEnum& pidtype, const double* limits)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[setPidErrorLimits] ";
+    if (!m_jointState.valid.load())
+    {
+        yCError(CB) << errorPrefix << "No valid data received yet.";
+        return false;
+    }
+    size_t numberOfJoints = 0;
+    {
+        std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
+        numberOfJoints = m_jointState.name.size();
+    }
+    std::vector<rcl_interfaces::msg::Parameter> params;
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        rcl_interfaces::msg::Parameter max_error_param;
+        max_error_param.name = position_max_error_tag;
+        max_error_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+        max_error_param.value.double_array_value.resize(numberOfJoints);
+        for (size_t j = 0; j < numberOfJoints; j++)
+        {
+            max_error_param.value.double_array_value[j] = limits[j];
+        }
+        params.push_back(max_error_param);
+        auto results = m_node->setParameters(params);
+        if (results.size() != params.size())
+        {
+            yCError(CB) << errorPrefix << "Error while setting position pid error limits.";
+            return false;
+        }
+        bool success = true;
+        for (const auto& res : results)
+        {
+            if (!res.successful)
+            {
+                yCError(CB) << errorPrefix << "Error while setting position pid error limit parameter:" << res.reason;
+                success = false;
+            }
+        }
+        return success;
+    }
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        rcl_interfaces::msg::Parameter max_error_param;
+        max_error_param.name = velocity_max_error_tag;
+        max_error_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+        max_error_param.value.double_array_value.resize(numberOfJoints);
+        for (size_t j = 0; j < numberOfJoints; j++)
+        {
+            max_error_param.value.double_array_value[j] = limits[j];
+        }
+        params.push_back(max_error_param);
+        auto results = m_node->setParameters(params);
+        if (results.size() != params.size())
+        {
+            yCError(CB) << errorPrefix << "Error while setting velocity pid error limits.";
+            return false;
+        }
+        bool success = true;
+        for (const auto& res : results)
+        {
+            if (!res.successful)
+            {
+                yCError(CB) << errorPrefix << "Error while setting velocity pid error limit parameter:" << res.reason;
+                success = false;
+            }
+        }
+        return success;
+    }
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE ||
+        pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        yCWarning(CB) << errorPrefix << "Setting torque/current pid does not have any effect on Isaac Sim.";
+        return true;
+    }
+    yCError(CB) << errorPrefix << "Unknown pid type.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidError(const yarp::dev::PidControlTypeEnum& pidtype, int j, double* err)
 {
-    return false;
+   std::lock_guard<std::mutex> lock(m_mutex);
+   std::string errorPrefix = "[getPidError] ";
+
+   std::string suffix_tag = "[" + std::to_string(j) + "]";
+   std::string parameter_name;
+   std::string pid_type_str;
+
+   if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+   {
+       parameter_name = position_pid_errors_tag + suffix_tag;
+       pid_type_str = "position";
+   }
+   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+   {
+       parameter_name = velocity_pid_errors_tag + suffix_tag;
+       pid_type_str = "velocity";
+   }
+   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+   {
+       parameter_name = torque_pid_errors_tag + suffix_tag;
+       pid_type_str = "torque";
+   }
+   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+   {
+       parameter_name = current_pid_errors_tag + suffix_tag;
+       pid_type_str = "current";
+   }
+   else
+   {
+       yCError(CB) << errorPrefix << "Unknown pid type.";
+       return false;
+   }
+
+   auto result = m_node->getParameters({ parameter_name });
+   if (result.size() != 1)
+   {
+       yCError(CB) << errorPrefix << "Error while getting pid error for type " << pid_type_str << "joint" << j;
+       return false;
+   }
+
+   if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+   {
+       yCError(CB) << errorPrefix << "Error while retrieving the pid error for type " << pid_type_str << "joint" << j;
+       return false;
+   }
+
+   if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
+   {
+       yCError(CB) << errorPrefix << "Error while getting pid error for type "
+                                  << pid_type_str << "joint" << j << ". Wrong parameter type.";
+       return false;
+   }
+
+   *err = result[0].double_value;
+   return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrors(const yarp::dev::PidControlTypeEnum& pidtype, double* errs)
 {
-    return false;
-}
+   std::lock_guard<std::mutex> lock(m_mutex);
+   std::string errorPrefix = "[getPidErrors] ";
 
+   std::string parameter_name;
+   std::string pid_type_str;
+
+   if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+   {
+       parameter_name = position_pid_errors_tag;
+       pid_type_str = "position";
+   }
+   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+   {
+       parameter_name = velocity_pid_errors_tag;
+       pid_type_str = "velocity";
+   }
+   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+   {
+       parameter_name = torque_pid_errors_tag;
+       pid_type_str = "torque";
+   }
+   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+   {
+       parameter_name = current_pid_errors_tag;
+       pid_type_str = "current";
+   }
+   else
+   {
+       yCError(CB) << errorPrefix << "Unknown pid type.";
+       return false;
+   }
+
+   auto result = m_node->getParameters({ parameter_name });
+   if (result.size() != 1)
+   {
+       yCError(CB) << errorPrefix << "Error while getting pid errors for type " << pid_type_str << ".";
+       return false;
+   }
+
+   if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+   {
+       yCError(CB) << errorPrefix << "Error while retrieving the pid errors for type " << pid_type_str << ".";
+       return false;
+   }
+
+   if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
+   {
+       yCError(CB) << errorPrefix << "Error while getting pid errors for type " << pid_type_str << ". Wrong parameter type.";
+       return false;
+   }
+
+   std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), errs);
+   return true;
+}
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidOutput(const yarp::dev::PidControlTypeEnum& pidtype, int j, double* out)
 {
-    return false;
+   std::lock_guard<std::mutex> lock(m_mutex);
+   std::string errorPrefix = "[getPidOutput] ";
+
+   std::string suffix_tag = "[" + std::to_string(j) + "]";
+   std::string parameter_name;
+   std::string pid_type_str;
+
+   if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+   {
+       parameter_name = position_pid_outputs_tag + suffix_tag;
+       pid_type_str = "position";
+   }
+   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+   {
+       parameter_name = velocity_pid_outputs_tag + suffix_tag;
+       pid_type_str = "velocity";
+   }
+   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+   {
+       parameter_name = torque_pid_outputs_tag + suffix_tag;
+       pid_type_str = "torque";
+   }
+   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+   {
+       parameter_name = current_pid_outputs_tag + suffix_tag;
+       pid_type_str = "current";
+   }
+   else
+   {
+       yCError(CB) << errorPrefix << "Unknown pid type.";
+       return false;
+   }
+
+   auto result = m_node->getParameters({ parameter_name });
+   if (result.size() != 1)
+   {
+       yCError(CB) << errorPrefix << "Error while getting pid output for type " << pid_type_str << "joint" << j;
+       return false;
+   }
+
+   if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+   {
+       yCError(CB) << errorPrefix << "Error while retrieving the pid output for type " << pid_type_str << "joint" << j;
+       return false;
+   }
+
+   if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
+   {
+       yCError(CB) << errorPrefix << "Error while getting pid output for type "
+                                  << pid_type_str << "joint" << j << ". Wrong parameter type.";
+       return false;
+   }
+
+   *out = result[0].double_value;
+   return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidOutputs(const yarp::dev::PidControlTypeEnum& pidtype, double* outs)
 {
-    return false;
+   std::lock_guard<std::mutex> lock(m_mutex);
+   std::string errorPrefix = "[getPidOutputs] ";
+
+   std::string parameter_name;
+   std::string pid_type_str;
+
+   if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+   {
+       parameter_name = position_pid_outputs_tag;
+       pid_type_str = "position";
+   }
+   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+   {
+       parameter_name = velocity_pid_outputs_tag;
+       pid_type_str = "velocity";
+   }
+   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+   {
+       parameter_name = torque_pid_outputs_tag;
+       pid_type_str = "torque";
+   }
+   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+   {
+       parameter_name = current_pid_outputs_tag;
+       pid_type_str = "current";
+   }
+   else
+   {
+       yCError(CB) << errorPrefix << "Unknown pid type.";
+       return false;
+   }
+
+   auto result = m_node->getParameters({ parameter_name });
+   if (result.size() != 1)
+   {
+       yCError(CB) << errorPrefix << "Error while getting pid outputs for type " << pid_type_str << ".";
+       return false;
+   }
+
+   if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+   {
+       yCError(CB) << errorPrefix << "Error while retrieving the pid outputs for type " << pid_type_str << ".";
+       return false;
+   }
+
+   if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
+   {
+       yCError(CB) << errorPrefix << "Error while getting pid outputs for type " << pid_type_str << ". Wrong parameter type.";
+       return false;
+   }
+
+   std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), outs);
+   return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidOffset(const yarp::dev::PidControlTypeEnum& pidtype, int j, double v)
 {
+    yCError(CB) << "[setPidOffset] Setting PID offsets is not implemented.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPid(const yarp::dev::PidControlTypeEnum& pidtype, int j, yarp::dev::Pid* p)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getPid] ";
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+    std::vector<std::string> parameter_names;
+    std::string pid_type_str;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        parameter_names = { position_p_gains_tag + suffix_tag,
+                            position_i_gains_tag + suffix_tag,
+                            position_d_gains_tag + suffix_tag,
+                            position_max_integral_tag + suffix_tag,
+                            position_max_output_tag + suffix_tag };
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        parameter_names = { velocity_p_gains_tag + suffix_tag,
+                            velocity_i_gains_tag + suffix_tag,
+                            velocity_d_gains_tag + suffix_tag,
+                            velocity_max_integral_tag + suffix_tag,
+                            velocity_max_output_tag + suffix_tag };
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        yCWarning(CB) << errorPrefix << "There is no torque PID in IsaacSim";
+        return true;
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        yCWarning(CB) << errorPrefix << "There is no current PID in IsaacSim.";
+        return true;
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
+
+    auto results = m_node->getParameters(parameter_names);
+    if (results.size() != parameter_names.size())
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid parameters for type " << pid_type_str  << "joint" << j;
+        return false;
+    }
+
+    bool success = true;
+    for (size_t i = 0; i < results.size(); ++i)
+    {
+        if (results[i].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+        {
+            yCError(CB) << errorPrefix << "Error while retrieving the pid parameter" << parameter_names[i] << "for type" << pid_type_str << ".";
+            success = false;
+        }
+        if (results[i].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
+        {
+            yCError(CB) << errorPrefix << "Error while getting pid parameter" << parameter_names[i] << "for type" << pid_type_str << ". Wrong parameter type.";
+            success = false;
+        }
+    }
+    if (!success)
+    {
+        return false;
+    }
+    p->kp = results[0].double_value;
+    p->ki = results[1].double_value;
+    p->kd = results[2].double_value;
+    p->max_int = results[3].double_value;
+    p->max_output = results[4].double_value;
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPids(const yarp::dev::PidControlTypeEnum& pidtype, yarp::dev::Pid* pids)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getPids] ";
+
+    std::vector<std::string> parameter_names;
+    std::string pid_type_str;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        parameter_names = { position_p_gains_tag,
+                            position_i_gains_tag,
+                            position_d_gains_tag,
+                            position_max_integral_tag,
+                            position_max_output_tag };
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        parameter_names = { velocity_p_gains_tag,
+                            velocity_i_gains_tag,
+                            velocity_d_gains_tag,
+                            velocity_max_integral_tag,
+                            velocity_max_output_tag };
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        yCWarning(CB) << errorPrefix << "There is no torque PID in IsaacSim.";
+        return true;
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        yCWarning(CB) << errorPrefix << "There is no current PID in IsaacSim.";
+        return true;
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
+
+    auto results = m_node->getParameters(parameter_names);
+
+    if (results.size() != parameter_names.size())
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid parameters for type " << pid_type_str << ".";
+        return false;
+    }
+
+    bool success = true;
+    for (size_t i = 0; i < results.size(); ++i)
+    {
+        if (results[i].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+        {
+            yCError(CB) << errorPrefix << "Error while retrieving the pid parameter" << parameter_names[i] << "for type" << pid_type_str << ".";
+            success = false;
+        }
+        if (results[i].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
+        {
+            yCError(CB) << errorPrefix << "Error while getting pid parameter" << parameter_names[i] << "for type" << pid_type_str << ". Wrong parameter type.";
+            success = false;
+        }
+    }
+
+    if (!success)
+    {
+        return false;
+    }
+
+    size_t numberOfJoints = results[0].double_array_value.size();
+    for (size_t j = 0; j < numberOfJoints; j++)
+    {
+        pids[j].kp = results[0].double_array_value[j];
+        pids[j].ki = results[1].double_array_value[j];
+        pids[j].kd = results[2].double_array_value[j];
+        pids[j].max_int = results[3].double_array_value[j];
+        pids[j].max_output = results[4].double_array_value[j];
+    }
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidReference(const yarp::dev::PidControlTypeEnum& pidtype, int j, double* ref)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getPidReference] ";
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+    std::string parameter_name;
+    std::string pid_type_str;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        parameter_name = position_pid_references_tag + suffix_tag;
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        parameter_name = velocity_pid_references_tag + suffix_tag;
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        parameter_name = torque_pid_references_tag + suffix_tag;
+        pid_type_str = "torque";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        parameter_name = current_pid_references_tag + suffix_tag;
+        pid_type_str = "current";
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
+
+    auto result = m_node->getParameters({ parameter_name });
+
+    if (result.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid reference for type " << pid_type_str << "joint" << j;
+        return false;
+    }
+    if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+    {
+        yCError(CB) << errorPrefix << "Error while retrieving the pid reference for type " << pid_type_str << "joint" << j;
+        return false;
+    }
+    if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid reference for type "
+                                   << pid_type_str << "joint" << j << ". Wrong parameter type.";
+        return false;
+    }
+    *ref = result[0].double_value;
+
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidReferences(const yarp::dev::PidControlTypeEnum& pidtype, double* refs)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getPidReferences] ";
+    std::string parameter_name;
+    std::string pid_type_str;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        parameter_name = position_pid_references_tag;
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        parameter_name = velocity_pid_references_tag;
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        parameter_name = torque_pid_references_tag;
+        pid_type_str = "torque";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        parameter_name = current_pid_references_tag;
+        pid_type_str = "current";
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
+
+    auto result = m_node->getParameters({ parameter_name });
+
+    if (result.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid references for type " << pid_type_str << ".";
+        return false;
+    }
+    if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+    {
+        yCError(CB) << errorPrefix << "Error while retrieving the pid references for type " << pid_type_str << ".";
+        return false;
+    }
+    if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid references for type " << pid_type_str << ". Wrong parameter type.";
+        return false;
+    }
+    std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), refs);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrorLimit(const yarp::dev::PidControlTypeEnum& pidtype, int j, double* limit)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getPidErrorLimit] ";
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+    std::string parameter_name;
+    std::string pid_type_str;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        parameter_name = position_max_error_tag + suffix_tag;
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        parameter_name = velocity_max_error_tag + suffix_tag;
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        yCWarning(CB) << errorPrefix << "There is no torque PID in IsaacSim.";
+        return true;
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        yCWarning(CB) << errorPrefix << "There is no current PID in IsaacSim.";
+        return true;
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
+
+    auto result = m_node->getParameters({ parameter_name });
+    if (result.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid error limit for type " << pid_type_str << "joint" << j;
+        return false;
+    }
+    if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+    {
+        yCError(CB) << errorPrefix << "Error while retrieving the pid error limit for type " << pid_type_str << "joint" << j;
+        return false;
+    }
+    if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid error limit for type "
+                                   << pid_type_str << "joint" << j << ". Wrong parameter type.";
+        return false;
+    }
+    *limit = result[0].double_value;
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrorLimits(const yarp::dev::PidControlTypeEnum& pidtype, double* limits)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getPidErrorLimits] ";
+    std::string parameter_name;
+    std::string pid_type_str;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        parameter_name = position_max_error_tag;
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        parameter_name = velocity_max_error_tag;
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        yCWarning(CB) << errorPrefix << "There is no torque PID in IsaacSim.";
+        return true;
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        yCWarning(CB) << errorPrefix << "There is no current PID in IsaacSim.";
+        return true;
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
+
+    auto result = m_node->getParameters({ parameter_name });
+    if (result.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid error limits for type " << pid_type_str << ".";
+        return false;
+    }
+    if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+    {
+        yCError(CB) << errorPrefix << "Error while retrieving the pid error limits for type " << pid_type_str << ".";
+        return false;
+    }
+    if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid error limits for type " << pid_type_str << ". Wrong parameter type.";
+        return false;
+    }
+    std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), limits);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::resetPid(const yarp::dev::PidControlTypeEnum& pidtype, int j)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[resetPid] ";
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+    std::string pid_type_str;
+    std::vector<rcl_interfaces::msg::Parameter> params;
+    rcl_interfaces::msg::Parameter reset_param;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        reset_param.name = position_pid_to_reset_tag + suffix_tag;
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        reset_param.name = velocity_pid_to_reset_tag + suffix_tag;
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        yCWarning(CB) << errorPrefix << "There is no torque PID in IsaacSim.";
+        return true;
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        yCWarning(CB) << errorPrefix << "There is no current PID in IsaacSim.";
+        return true;
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
+
+    reset_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
+    reset_param.value.bool_value = true;
+    params.push_back(reset_param);
+    auto results = m_node->setParameters(params);
+
+    if (results.size() != params.size())
+    {
+        yCError(CB) << errorPrefix << "Error while resetting pid for type" << pid_type_str << "joint" << j;
+        return false;
+    }
+
+    bool success = true;
+    for (const auto& res : results)
+    {
+        if (!res.successful)
+        {
+            yCError(CB) << errorPrefix << "Error while resetting pid of type"
+                                       << pid_type_str << "joint" << j << ":" << res.reason;
+            success = false;
+        }
+    }
+
+    return success;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::disablePid(const yarp::dev::PidControlTypeEnum& pidtype, int j)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[disablePid] ";
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+    std::string pid_type_str;
+    std::vector<rcl_interfaces::msg::Parameter> params;
+    rcl_interfaces::msg::Parameter disable_param;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        disable_param.name = position_pid_enabled_tag + suffix_tag;
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        rcl_interfaces::msg::Parameter disable_param;
+        disable_param.name = velocity_pid_enabled_tag + suffix_tag;
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        rcl_interfaces::msg::Parameter disable_param;
+        disable_param.name = torque_pid_enabled_tag + suffix_tag;
+        pid_type_str = "torque";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        rcl_interfaces::msg::Parameter disable_param;
+        disable_param.name = current_pid_enabled_tag + suffix_tag;
+        pid_type_str = "current";
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
+
+    disable_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
+    disable_param.value.bool_value = false;
+    params.push_back(disable_param);
+
+
+    auto results = m_node->setParameters(params);
+    if (results.size() != params.size())
+    {
+        yCError(CB) << errorPrefix << "Error while disabling pid for type" << pid_type_str << "joint" << j;
+        return false;
+    }
+    bool success = true;
+    for (const auto& res : results)
+    {
+        if (!res.successful)
+        {
+            yCError(CB) << errorPrefix << "Error while disabling pid of type"
+                << pid_type_str << "joint" << j << ":" << res.reason;
+            success = false;
+        }
+    }
+    return success;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::enablePid(const yarp::dev::PidControlTypeEnum& pidtype, int j)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[enablePid] ";
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+    std::string pid_type_str;
+    std::vector<rcl_interfaces::msg::Parameter> params;
+    rcl_interfaces::msg::Parameter enable_param;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        enable_param.name = position_pid_enabled_tag + suffix_tag;
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        enable_param.name = velocity_pid_enabled_tag + suffix_tag;
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        enable_param.name = torque_pid_enabled_tag + suffix_tag;
+        pid_type_str = "torque";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        enable_param.name = current_pid_enabled_tag + suffix_tag;
+        pid_type_str = "current";
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
+
+    enable_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
+    enable_param.value.bool_value = true;
+    params.push_back(enable_param);
+    auto results = m_node->setParameters(params);
+    if (results.size() != params.size())
+    {
+        yCError(CB) << errorPrefix << "Error while enabling pid for type" << pid_type_str << "joint" << j;
+        return false;
+    }
+    bool success = true;
+    for (const auto& res : results)
+    {
+        if (!res.successful)
+        {
+            yCError(CB) << errorPrefix << "Error while enabling pid of type"
+                << pid_type_str << "joint" << j << ":" << res.reason;
+            success = false;
+        }
+    }
+    return success;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::isPidEnabled(const yarp::dev::PidControlTypeEnum& pidtype, int j, bool* enabled)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[isPidEnabled] ";
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+    std::string parameter_name;
+    std::string pid_type_str;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        parameter_name = position_pid_enabled_tag + suffix_tag;
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        parameter_name = velocity_pid_enabled_tag + suffix_tag;
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        parameter_name = torque_pid_enabled_tag + suffix_tag;
+        pid_type_str = "torque";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        parameter_name = current_pid_enabled_tag + suffix_tag;
+        pid_type_str = "current";
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
+
+    auto result = m_node->getParameters({ parameter_name });
+    if (result.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting if pid is enabled for type " << pid_type_str << "joint" << j;
+        return false;
+    }
+    if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+    {
+        yCError(CB) << errorPrefix << "Error while retrieving if pid is enabled for type " << pid_type_str << "joint" << j;
+        return false;
+    }
+    if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_BOOL)
+    {
+        yCError(CB) << errorPrefix << "Error while getting if pid is enabled for type "
+            << pid_type_str << "joint" << j << ". Wrong parameter type.";
+        return false;
+    }
+    *enabled = result[0].bool_value;
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getAxes(int* ax)
