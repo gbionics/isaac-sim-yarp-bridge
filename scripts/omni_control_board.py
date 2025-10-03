@@ -107,14 +107,18 @@ class ControlBoardSettings:
     motor_max_currents: list[float]
 
 
+def create_vocab_32(a, b=chr(0), c=chr(0), d=chr(0)):
+    return (ord(a)) + (ord(b) << 8) + (ord(c) << 16) + (ord(d) << 24)
+
+
 class ControlMode(enum.IntEnum):
-    IDLE = 0
-    POSITION = 1
-    POSITION_DIRECT = 2
-    VELOCITY = 3
-    TORQUE = 4
-    CURRENT = 5
-    HARDWARE_FAULT = 6
+    IDLE = create_vocab_32("i", "d", "l")  # VOCAB_CM_IDLE
+    POSITION = create_vocab_32("p", "o", "s")  # VOCAB_CM_POSITION
+    POSITION_DIRECT = create_vocab_32("p", "o", "s", "d")  # VOCAB_CM_POSITION_DIRECT
+    VELOCITY = create_vocab_32("v", "e", "l")  # VOCAB_CM_VELOCITY
+    TORQUE = create_vocab_32("t", "o", "r", "q")  # VOCAB_CM_TORQUE
+    CURRENT = create_vocab_32("i", "c", "u", "r")  # VOCAB_CM_CURRENT
+    HARDWARE_FAULT = create_vocab_32("h", "w", "f", "a")  # VOCAB_CM_HW_FAULT
 
 
 class ControlBoardState:
