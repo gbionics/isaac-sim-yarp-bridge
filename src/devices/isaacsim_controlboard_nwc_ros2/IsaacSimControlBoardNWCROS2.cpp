@@ -3407,36 +3407,92 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrents(double* currs)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrentRange(int m, double* min, double* max)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getCurrentRange] ";
+    std::string suffix_tag = "[" + std::to_string(m) + "]";
+    auto results = m_node->getParameters({ motor_max_currents_tag + suffix_tag });
+    if (results.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting max current for motor" << m << ".";
+        return false;
+    }
+    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+    {
+        yCError(CB) << errorPrefix << "Error while retrieving max current for motor" << m << ".";
+        return false;
+    }
+    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
+    {
+        yCError(CB) << errorPrefix << "Error while getting max current for motor" << m << ". Wrong parameter type.";
+        return false;
+    }
+    *max = results[0].double_value;
+    *min = -(*max);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrentRanges(double* min, double* max)
 {
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getCurrentRanges] ";
+    auto results = m_node->getParameters({ motor_max_currents_tag });
+    if (results.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting max currents.";
+        return false;
+    }
+    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+    {
+        yCError(CB) << errorPrefix << "Error while retrieving max currents.";
+        return false;
+    }
+    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
+    {
+        yCError(CB) << errorPrefix << "Error while getting max currents. Wrong parameter type.";
+        return false;
+    }
+
+    if (min == nullptr || max == nullptr)
+    {
+        yCError(CB) << errorPrefix << "min or max is a null pointer.";
+        return false;
+    }
+
+    std::copy(results[0].double_array_value.begin(), results[0].double_array_value.end(), max);
+    for (size_t i = 0; i < results[0].double_array_value.size(); i++)
+    {
+        min[i] = -max[i];
+    }
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefCurrents(const double* currs)
 {
+    // TODO
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefCurrent(int m, double curr)
 {
+    // TODO
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefCurrents(const int n_motor, const int* motors, const double* currs)
 {
+    // TODO
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefCurrents(double* currs)
 {
+    // TODO
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefCurrent(int m, double* curr)
 {
+    // TODO
     return false;
 }
 
