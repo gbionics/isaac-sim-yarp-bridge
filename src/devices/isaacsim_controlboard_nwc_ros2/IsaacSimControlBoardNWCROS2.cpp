@@ -3547,9 +3547,22 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setup()
 
 void yarp::dev::IsaacSimControlBoardNWCROS2::updateJointMeasurements(const sensor_msgs::msg::JointState::ConstSharedPtr msg)
 {
-    std::lock_guard<std::mutex> lock(m_jointState.mutex);
+    {
+        std::lock_guard<std::mutex> lock(m_jointState.mutex);
 
-    m_jointState.convert_to_vectors(msg);
+        m_jointState.convert_to_vectors(msg);
+
+        if (m_jointState.valid && m_ready && m_jointState.name.size() != m_jointNames.size())
+        {
+            yCWarning(CB) << "[updateJointMeasurements] Number of joints in the received message (" << m_jointState.name.size()
+                << ") is different from the expected one (" << m_jointNames.size() << ").";
+            m_ready = false;
+        }
+    }
+    if (!m_ready)
+    {
+        setup();
+    }
 }
 
 void yarp::dev::IsaacSimControlBoardNWCROS2::updateMotorMeasurements(const sensor_msgs::msg::JointState::ConstSharedPtr msg)
