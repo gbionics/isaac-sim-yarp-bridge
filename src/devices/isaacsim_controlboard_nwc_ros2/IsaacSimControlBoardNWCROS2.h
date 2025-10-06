@@ -456,6 +456,7 @@ private:
         explicit CBNode(const std::string& node_name,
                         const std::string& joint_state_topic_name,
                         const std::string& motor_state_topic_name,
+                        const std::string& joint_references_topic_name,
                         const std::string& get_param_service_name,
                         const std::string& set_param_service_name,
                         double requests_timeout_sec,
@@ -468,6 +469,7 @@ private:
     private:
         rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_jointStateSubscription;
         rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_motorStateSubscription;
+        rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr m_referencesPublisher;
         rclcpp::Client<rcl_interfaces::srv::GetParameters>::SharedPtr m_getParamClient;
         rclcpp::Client<rcl_interfaces::srv::SetParameters>::SharedPtr m_setParamClient;
         std::chrono::duration<double> m_requestsTimeout;

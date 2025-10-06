@@ -83,6 +83,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::open(yarp::os::Searchable& config)
     m_node = std::make_shared<CBNode>(m_paramsParser.m_node_name,
                                       m_paramsParser.m_joint_state_topic_name,
                                       m_paramsParser.m_motor_state_topic_name,
+                                      m_paramsParser.m_joint_references_topic_name,
                                       m_paramsParser.m_get_parameters_service_name,
                                       m_paramsParser.m_set_parameters_service_name,
                                       m_paramsParser.m_service_request_timeout,
@@ -3517,6 +3518,7 @@ void yarp::dev::IsaacSimControlBoardNWCROS2::JointsState::convert_to_vectors(con
 yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::CBNode(const std::string& node_name,
                                                        const std::string& joint_state_topic_name,
                                                        const std::string& motor_state_topic_name,
+                                                       const std::string& joint_references_topic_name,
                                                        const std::string& get_param_service_name,
                                                        const std::string& set_param_service_name,
                                                        double requests_timeout_sec,
@@ -3533,6 +3535,7 @@ yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::CBNode(const std::string& node_n
         [parent](const sensor_msgs::msg::JointState::ConstSharedPtr msg) {
         parent->updateMotorMeasurements(msg);
     });
+    m_referencesPublisher = this->create_publisher<sensor_msgs::msg::JointState>(joint_references_topic_name, 10);
     m_getParamClient = this->create_client<rcl_interfaces::srv::GetParameters>(get_param_service_name);
     m_setParamClient = this->create_client<rcl_interfaces::srv::SetParameters>(set_param_service_name);
 
