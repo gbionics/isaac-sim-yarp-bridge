@@ -335,6 +335,7 @@ class ControlMode(enum.IntEnum):
 
 class ControlBoardState:
     joint_names: list[str]
+    joint_types: list[int]
 
     # Joint limits
     max_positions: list[float]
@@ -467,6 +468,9 @@ class ControlBoardState:
         default_state = robot.get_joints_default_state()
         default_positions = default_state.positions[0]
         self.home_positions = [default_positions[j] for j in joint_indices]
+
+        # Get the joint types from the robot
+        self.joint_types = robot.get_dof_types(dof_names=self.joint_names)
 
 
 class ControlBoardNode(ROS2Node):
