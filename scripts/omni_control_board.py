@@ -166,13 +166,6 @@ class ControlBoardState:
     position_pid_to_reset: list[bool]
     position_pid_to_stop: list[bool]
 
-    # Position Direct PID state
-    position_direct_pid_references: list[float]
-    position_direct_pid_errors: list[float]
-    position_direct_pid_outputs: list[float]
-    position_direct_pid_enabled: list[bool]
-    position_direct_pid_to_reset: list[bool]
-
     # Velocity PID state
     velocity_pid_references: list[float]
     velocity_pid_errors: list[float]
@@ -227,11 +220,6 @@ class ControlBoardState:
         self.position_pid_enabled = [True] * n_joints
         self.position_pid_to_reset = [False] * n_joints
         self.position_pid_to_stop = [False] * n_joints
-        self.position_direct_pid_references = [float("nan")] * n_joints
-        self.position_direct_pid_errors = [float("nan")] * n_joints
-        self.position_direct_pid_outputs = [float("nan")] * n_joints
-        self.position_direct_pid_enabled = [True] * n_joints
-        self.position_direct_pid_to_reset = [False] * n_joints
         self.velocity_pid_references = [float("nan")] * n_joints
         self.velocity_pid_errors = [float("nan")] * n_joints
         self.velocity_pid_outputs = [float("nan")] * n_joints
@@ -598,6 +586,7 @@ class ControlBoardPID:
     previous_error: float
     output: float
     smoother: None
+    smoother_active: bool
 
     def __init__(
         self,
@@ -631,8 +620,7 @@ class ControlBoardPID:
         self.previous_error = 0.0
         self.reference = None
         self.smoother = None
-        self.input_reference = None
-        self.input_reference_velocity = None
+        self.smoother_active = False
         self.compliant_offset = None
 
     def set_reference(self, reference, velocity=None):
@@ -641,6 +629,11 @@ class ControlBoardPID:
 
     def set_smoother(self, smoother):
         self.smoother = smoother
+
+    def enable_smoother(self, enable):
+        self.smoother_active = enable
+        if self.smoother and not enable:
+            self.smoother.initialized = False
 
     def set_compliant_mode(self, compliant):
         if compliant != self.compliant_mode:
@@ -652,7 +645,7 @@ class ControlBoardPID:
         self.compliant_offset = offset
 
     def compute(self, delta_time, measurement, measurement_velocity=None):
-        if self.smoother:
+        if self.smoother and self.smoother_active:
             # Reinitialize the smoother if not initialized or if the reference changed
             if not self.smoother.initialized or self.input_reference:
                 # If no input reference is set, use the current measurement as reference
@@ -681,8 +674,8 @@ class ControlBoardPID:
         if self.reference is None:
             self.reference = measurement
 
-        self.input_reference = None  # reset the input reference
-        self.input_reference_velocity = None  # reset the input reference velocity
+        self.input_reference = None
+        self.input_reference_velocity = None
 
         error = self.reference - measurement
         error = max(min(error, self.max_error), -self.max_error)
@@ -754,6 +747,8 @@ class ControlBoardPID:
 
         self.compliant_offset = None
         self.compliant_mode = False
+        self.input_reference = None  # reset the input reference
+        self.input_reference_velocity = None  # reset the input reference velocity
 
     def get_output(self):
         return self.output
@@ -1017,13 +1012,16 @@ def get_pid_output(
     if reference_current:
         reference_current = max(min(reference_current, max_current), -max_current)
 
-    if control_mode == ControlMode.POSITION:
+    if (
+        control_mode == ControlMode.POSITION
+        or control_mode == ControlMode.POSITION_DIRECT
+    ):
         if not cb_state.position_pid_enabled:
             cb_state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
             cb_state.hf_messages[joint_index] = "Position PID not enabled."
             return 0.0
 
-        pid = script_state.pids[joint_index].get(control_mode, None)
+        pid = script_state.pids[joint_index].get(ControlMode.POSITION, None)
         if pid is None:
             script_state.pids[joint_index][control_mode] = ControlBoardPID(
                 p=cb_state.position_p_gains[joint_index],
@@ -1036,7 +1034,7 @@ def get_pid_output(
                 max_error=cb_state.position_max_error[joint_index],
                 default_velocity=cb_state.settings.position_default_velocity,
             )
-            pid = script_state.pids[joint_index][control_mode]
+            pid = script_state.pids[joint_index][ControlMode.POSITION]
             pid.set_smoother(MinJerkTrajectoryGenerator())
         else:
             pid.update_gains(
@@ -1070,53 +1068,7 @@ def get_pid_output(
         if reference_effort:
             pid.set_compliant_mode_offset(reference_effort)
 
-        return pid.compute(delta_time, measured_position, measured_velocity)
-
-    elif control_mode == ControlMode.POSITION_DIRECT:
-        if not cb_state.position_direct_pid_enabled:
-            cb_state.control_modes[joint_index] = ControlMode.HARDWARE_FAULT
-            cb_state.hf_messages[joint_index] = "Position Direct PID not enabled."
-            return 0.0
-
-        pid = script_state.pids[joint_index].get(control_mode, None)
-        if pid is None:
-            script_state.pids[joint_index][control_mode] = ControlBoardPID(
-                p=cb_state.position_p_gains[joint_index],
-                i=cb_state.position_i_gains[joint_index],
-                d=cb_state.position_d_gains[joint_index],
-                compliant_stiffness=cb_state.compliant_stiffness[joint_index],
-                compliant_damping=cb_state.compliant_damping[joint_index],
-                max_integral=cb_state.position_max_integral[joint_index],
-                max_output=cb_state.position_max_output[joint_index],
-                max_error=cb_state.position_max_error[joint_index],
-                default_velocity=cb_state.settings.position_default_velocity,
-            )
-            pid = script_state.pids[joint_index][control_mode]
-        else:
-            pid.update_gains(
-                p=cb_state.position_p_gains[joint_index],
-                i=cb_state.position_i_gains[joint_index],
-                d=cb_state.position_d_gains[joint_index],
-                compliant_stiffness=cb_state.compliant_stiffness[joint_index],
-                compliant_damping=cb_state.compliant_damping[joint_index],
-                max_integral=cb_state.position_max_integral[joint_index],
-                max_output=cb_state.position_max_output[joint_index],
-                max_error=cb_state.position_max_error[joint_index],
-            )
-
-        if control_mode == ControlMode.POSITION and pid.smoother is None:
-            pid.set_smoother(MinJerkTrajectoryGenerator())
-
-        if cb_state.previous_control_modes[joint_index] != control_mode:
-            pid.reset()
-        cb_state.previous_control_modes[joint_index] = control_mode
-
-        if reference_position:
-            pid.set_reference(reference_position)
-
-        pid.set_compliant_mode(cb_state.compliant_modes[joint_index])
-        if reference_effort:
-            pid.set_compliant_mode_offset(reference_effort)
+        pid.enable_smoother(control_mode == ControlMode.POSITION)
 
         return pid.compute(delta_time, measured_position, measured_velocity)
 
@@ -1239,15 +1191,11 @@ def update_state(db: og.Database):
 
     for i in range(len(cb_state.joint_names)):
         position_pid = None
-        position_direct_pid = None
         velocity_pid = None
         torque_reference = None
         current_dict = None
         if i in script_state.pids:
             position_pid = script_state.pids[i].get(ControlMode.POSITION, None)
-            position_direct_pid = script_state.pids[i].get(
-                ControlMode.POSITION_DIRECT, None
-            )
             velocity_pid = script_state.pids[i].get(ControlMode.VELOCITY, None)
             torque_reference = script_state.pids[i].get(ControlMode.TORQUE, None)
             current_dict = script_state.pids[i].get(ControlMode.CURRENT, None)
@@ -1261,14 +1209,6 @@ def update_state(db: og.Database):
             cb_state.position_pid_outputs[i] = position_pid.get_output()
             if position_pid.smoother:
                 cb_state.is_motion_done[i] = position_pid.smoother.trajectory_completed
-
-        if position_direct_pid:
-            reference = position_direct_pid.get_reference()
-            if reference:
-                cb_state.position_direct_pid_references[i] = reference
-
-            cb_state.position_direct_pid_errors[i] = position_direct_pid.get_error()
-            cb_state.position_direct_pid_outputs[i] = position_direct_pid.get_output()
 
         if velocity_pid:
             reference = velocity_pid.get_reference()
@@ -1308,22 +1248,6 @@ def reset_requested_pids(db: og.Database):
             if i in script_state.pids and ControlMode.POSITION in script_state.pids[i]:
                 script_state.pids[i][ControlMode.POSITION].reset()
             cb_state.position_pid_to_reset[i] = False
-
-        if cb_state.position_direct_pid_to_reset[i]:
-            cb_state.position_p_gains[i] = original.position_p_gains[i]
-            cb_state.position_i_gains[i] = original.position_i_gains[i]
-            cb_state.position_d_gains[i] = original.position_d_gains[i]
-            cb_state.position_max_integral[i] = original.position_max_integral[i]
-            cb_state.position_max_output[i] = original.position_max_output[i]
-            cb_state.position_max_error[i] = original.position_max_error[i]
-            cb_state.compliant_stiffness[i] = original.compliant_stiffness[i]
-            cb_state.compliant_damping[i] = original.compliant_damping[i]
-            if (
-                i in script_state.pids
-                and ControlMode.POSITION_DIRECT in script_state.pids[i]
-            ):
-                script_state.pids[i][ControlMode.POSITION_DIRECT].reset()
-            cb_state.position_direct_pid_to_reset[i] = False
 
         if cb_state.velocity_pid_to_reset[i]:
             cb_state.velocity_p_gains[i] = original.velocity_p_gains[i]
