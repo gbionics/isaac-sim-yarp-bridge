@@ -463,6 +463,8 @@ private:
         mutable std::mutex mutex;
         void convert_to_vectors(const sensor_msgs::msg::JointState::ConstSharedPtr& js);
         void convert_to_msg(sensor_msgs::msg::JointState& js) const;
+        bool convert_to_deg_if_revolute(size_t index, double input, double& output) const;
+        bool convert_to_rad_if_revolute(size_t index, double input, double& output) const;
         void resize();
         void invalidate();
     };

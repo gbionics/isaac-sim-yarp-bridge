@@ -12,6 +12,8 @@ YARP_LOG_COMPONENT(CB, "yarp.device.IsaacSimControlBoardNWCROS2")
 constexpr double rad2deg = 180.0 / M_PI;
 constexpr double deg2rad = M_PI / 180.0;
 
+//TODO: may of the things we get from services need to be converted from rad to deg and viceversa
+
 static const std::string joint_names_tag = "joint_names";
 static const std::string joint_types_tag = "joint_types";
 static const std::string max_positions_tag = "max_positions";
@@ -376,14 +378,89 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPids(const yarp::dev::PidControl
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidReference(const yarp::dev::PidControlTypeEnum& pidtype, int j, double ref)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[setPidReference] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+
+        if (j < 0 || static_cast<size_t>(j) >= m_jointReferences.name.size())
+        {
+            yCError(CB) << errorPrefix << "Joint index out of range. Got " << j << ", expected [0," << m_jointReferences.name.size() - 1 << "]";
+            return false;
+        }
+
+        if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+        {
+            m_jointReferences.position[j] = ref;
+            if (m_compliant[j])
+            {
+                m_jointReferences.effort[j] = m_compliantOffset[j];
+            }
+        }
+        else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+        {
+            m_jointReferences.velocity[j] = ref;
+        }
+        else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE ||
+            pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+        {
+            m_jointReferences.effort[j] = ref;
+        }
+        m_jointReferences.valid = true;
+    }
+
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidReferences(const yarp::dev::PidControlTypeEnum& pidtype, const double* refs)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[setPidReferences] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+        {
+            for (size_t j = 0; j < numberOfJoints; j++)
+            {
+                m_jointReferences.position[j] = refs[j];
+                if (m_compliant[j])
+                {
+                    m_jointReferences.effort[j] = m_compliantOffset[j];
+                }
+            }
+        }
+        else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+        {
+            for (size_t j = 0; j < numberOfJoints; j++)
+            {
+                m_jointReferences.velocity[j] = refs[j];
+            }
+        }
+        else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE ||
+            pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+        {
+            for (size_t j = 0; j < numberOfJoints; j++)
+            {
+                m_jointReferences.effort[j] = refs[j];
+            }
+        }
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidErrorLimit(const yarp::dev::PidControlTypeEnum& pidtype, int j, double limit)
@@ -1258,56 +1335,252 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getAxes(int* ax)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::positionMove(int j, double ref)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[positionMove] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+
+        if (j < 0 || static_cast<size_t>(j) >= m_jointReferences.name.size())
+        {
+            yCError(CB) << errorPrefix << "Joint index out of range. Got " << j << ", expected [0," << m_jointReferences.name.size() - 1 << "]";
+            return false;
+        }
+
+        m_jointReferences.position[j] = ref;
+
+        if (m_compliant[j])
+        {
+            m_jointReferences.effort[j] = m_compliantOffset[j];
+        }
+
+        m_jointReferences.valid = true;
+    }
+
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::positionMove(const double* refs)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[positionMove] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        for (size_t j = 0; j < numberOfJoints; j++)
+        {
+            m_jointReferences.position[j] = refs[j];
+            if (m_compliant[j])
+            {
+                m_jointReferences.effort[j] = m_compliantOffset[j];
+            }
+        }
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::positionMove(const int n_joints, const int* joints, const double* refs)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[positionMove] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        for (int i = 0; i < n_joints; i++)
+        {
+            int j = joints[i];
+            if (j < 0 || static_cast<size_t>(j) >= numberOfJoints)
+            {
+                yCError(CB) << errorPrefix << "Joint index out of range. Got" << j << ", expected [0," << numberOfJoints - 1 << "]";
+                return false;
+            }
+            m_jointReferences.position[j] = refs[i];
+            if (m_compliant[j])
+            {
+                m_jointReferences.effort[j] = m_compliantOffset[j];
+            }
+        }
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getTargetPosition(const int joint, double* ref)
 {
-    // TODO
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getTargetPosition] ";
+    std::string suffix_tag = "[" + std::to_string(joint) + "]";
+    std::string parameter_name = position_pid_references_tag + suffix_tag;
+    auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE} });
+    if (result.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting target position for joint" << joint;
+        return false;
+    }
+    *ref = result[0].double_value;
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getTargetPositions(double* refs)
 {
-    // TODO
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getTargetPositions] ";
+    auto result = m_node->getParameters({ {position_pid_references_tag, Type::PARAMETER_DOUBLE_ARRAY} });
+    if (result.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting target positions.";
+        return false;
+    }
+    std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), refs);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getTargetPositions(const int n_joint, const int* joints, double* refs)
 {
-    // TODO
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getTargetPositions] ";
+    auto result = m_node->getParameters({ {position_pid_references_tag, Type::PARAMETER_DOUBLE_ARRAY} });
+    if (result.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting target positions.";
+        return false;
+    }
+    const auto& position_array = result[0].double_array_value;
+    for (int i = 0; i < n_joint; i++)
+    {
+        int j = joints[i];
+        if (j < 0 || static_cast<size_t>(j) >= position_array.size())
+        {
+            yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << position_array.size() - 1 << "]";
+            return false;
+        }
+        refs[i] = position_array[j];
+    }
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::relativeMove(int j, double delta)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[relativeMove] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        if (j < 0 || static_cast<size_t>(j) >= m_jointReferences.name.size())
+        {
+            yCError(CB) << errorPrefix << "Joint index out of range. Got" << j << ", expected [0," << m_jointReferences.name.size() - 1 << "]";
+            return false;
+        }
+
+        if (!m_jointState.valid)
+        {
+            yCError(CB) << errorPrefix << "Cannot perform relative move. Current joint states are not valid.";
+            return false;
+        }
+
+        std::lock_guard<std::mutex> lock_measurement(m_jointState.mutex);
+        m_jointReferences.position[j] = m_jointState.position[j] + delta;
+        if (m_compliant[j])
+        {
+            m_jointReferences.effort[j] = m_compliantOffset[j];
+        }
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::relativeMove(const double* deltas)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[relativeMove] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        if (!m_jointState.valid)
+        {
+            yCError(CB) << errorPrefix << "Cannot perform relative move. Current joint states are not valid.";
+            return false;
+        }
+        std::lock_guard<std::mutex> lock_measurement(m_jointState.mutex);
+        for (size_t j = 0; j < numberOfJoints; j++)
+        {
+            m_jointReferences.position[j] = m_jointState.position[j] + deltas[j];
+            if (m_compliant[j])
+            {
+                m_jointReferences.effort[j] = m_compliantOffset[j];
+            }
+        }
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::relativeMove(const int n_joints, const int* joints, const double* deltas)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[relativeMove] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        if (!m_jointState.valid)
+        {
+            yCError(CB) << errorPrefix << "Cannot perform relative move. Current joint states are not valid.";
+            return false;
+        }
+        std::lock_guard<std::mutex> lock_measurement(m_jointState.mutex);
+        for (int i = 0; i < n_joints; i++)
+        {
+            int j = joints[i];
+            if (j < 0 || static_cast<size_t>(j) >= numberOfJoints)
+            {
+                yCError(CB) << errorPrefix << "Joint index out of range. Got" << j << ", expected [0," << numberOfJoints - 1 << "]";
+                return false;
+            }
+            m_jointReferences.position[j] = m_jointState.position[j] + deltas[i];
+            if (m_compliant[j])
+            {
+                m_jointReferences.effort[j] = m_compliantOffset[j];
+            }
+        }
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::checkMotionDone(int j, bool* flag)
@@ -1387,20 +1660,74 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::checkMotionDone(const int n_joints,
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefSpeed(int j, double sp)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[setRefSpeed] ";
+
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+
+    if (j < 0 || static_cast<size_t>(j) >= m_jointReferences.name.size())
+    {
+        yCError(CB) << errorPrefix << "Joint index out of range. Got " << j << ", expected [0," << m_jointReferences.name.size() - 1 << "]";
+        return false;
+    }
+
+    // Set the reference, but don't send it
+    // It will be sent at the next positionMove command
+    m_jointReferences.velocity[j] = sp;
+
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefSpeeds(const double* spds)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[setRefSpeeds] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+    size_t numberOfJoints = m_jointReferences.name.size();
+    for (size_t j = 0; j < numberOfJoints; j++)
+    {
+        // Set the reference, but don't send it
+        // It will be sent at the next positionMove command
+        m_jointReferences.velocity[j] = spds[j];
+    }
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefSpeeds(const int n_joints, const int* joints, const double* spds)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[setRefSpeeds] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+    size_t numberOfJoints = m_jointReferences.name.size();
+    for (int i = 0; i < n_joints; i++)
+    {
+        int j = joints[i];
+        if (j < 0 || static_cast<size_t>(j) >= numberOfJoints)
+        {
+            yCError(CB) << errorPrefix << "Joint index out of range. Got" << j << ", expected [0," << numberOfJoints - 1 << "]";
+            return false;
+        }
+        // Set the reference, but don't send it
+        // It will be sent at the next positionMove command
+        m_jointReferences.velocity[j] = spds[i];
+    }
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefAcceleration(int j, double acc)
@@ -1574,14 +1901,47 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getLastJointFault(int j, int& fault
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::velocityMove(int j, double v)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[velocityMove] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        if (j < 0 || static_cast<size_t>(j) >= m_jointReferences.name.size())
+        {
+            yCError(CB) << errorPrefix << "Joint index out of range. Got " << j << ", expected [0," << m_jointReferences.name.size() - 1 << "]";
+            return false;
+        }
+        m_jointReferences.velocity[j] = v;
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::velocityMove(const double* v)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[velocityMove] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        for (size_t j = 0; j < numberOfJoints; j++)
+        {
+            m_jointReferences.velocity[j] = v[j];
+        }
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::resetEncoder(int j)
@@ -1762,13 +2122,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::resetMotorEncoders()
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setMotorEncoderCountsPerRevolution(int m, const double cpr)
 {
-    //TODO: this could be the gear ratio
+    yCError(CB) << "[setMotorEncoderCountsPerRevolution] It is not possible to set motor encoder counts per revolution in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncoderCountsPerRevolution(int m, double* cpr)
 {
-    //TODO: this could be the gear ratio
+
+    yCError(CB) << "[getMotorEncoderCountsPerRevolution] It is not possible to get motor encoder counts per revolution in Isaac sim.";
     return false;
 }
 
@@ -2252,14 +2613,80 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::calibrateWholePart()
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::homingSingleJoint(int j)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[homingSingleJoint] ";
+
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+    auto results = m_node->getParameters({ {home_positions_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
+    if (results.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting home position for joint" << j << ".";
+        return false;
+    }
+    double homePosition = results[0].double_value;
+
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+
+        // We need to convert since when sending the message, it will be converted back
+
+        if (!m_jointReferences.convert_to_deg_if_revolute(j, homePosition, m_jointReferences.position[j]))
+        {
+            yCError(CB) << errorPrefix << "Joint index out of range. Got " << j << ", expected [0," << m_jointReferences.name.size() - 1 << "]";
+            return false;
+        }
+
+        if (m_compliant[j])
+        {
+            m_jointReferences.effort[j] = m_compliantOffset[j];
+        }
+
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::homingWholePart()
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[homingWholePart] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        auto results = m_node->getParameters({ {home_positions_tag, Type::PARAMETER_DOUBLE_ARRAY} });
+        if (results.size() != 1)
+        {
+            yCError(CB) << errorPrefix << "Error while getting home positions.";
+            return false;
+        }
+
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        for (size_t j = 0; j < numberOfJoints; j++)
+        {
+            m_jointReferences.convert_to_deg_if_revolute(j, results[0].double_array_value[j],
+                                                 m_jointReferences.position[j]);
+
+            if (m_compliant[j])
+            {
+                m_jointReferences.effort[j] = m_compliantOffset[j];
+            }
+        }
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::parkSingleJoint(int j, bool _wait)
@@ -3349,10 +3776,8 @@ void yarp::dev::IsaacSimControlBoardNWCROS2::JointsState::convert_to_vectors(con
     velocity = js->velocity;
     if (useConversions) {
         for (size_t i = 0; i < position.size(); i++) {
-            if (jointTypes[i] == 0) {
-                position[i] *= rad2deg;
-                velocity[i] *= rad2deg;
-            }
+            convert_to_deg_if_revolute(i, position[i], position[i]);
+            convert_to_deg_if_revolute(i, velocity[i], velocity[i]);
             // Assuming that there is no conversion for linear joints
         }
     }
@@ -3369,14 +3794,42 @@ void yarp::dev::IsaacSimControlBoardNWCROS2::JointsState::convert_to_msg(sensor_
     js.velocity = velocity;
     if (useConversions) {
         for (size_t i = 0; i < position.size(); i++) {
-            if (jointTypes[i] == 0) {
-                js.position[i] *= deg2rad;
-                js.velocity[i] *= deg2rad;
-            }
+            convert_to_rad_if_revolute(i, position[i], js.position[i]);
+            convert_to_rad_if_revolute(i, velocity[i], js.velocity[i]);
             // Assuming that there is no conversion for linear joints
         }
     }
     js.effort = effort;
+}
+
+bool yarp::dev::IsaacSimControlBoardNWCROS2::JointsState::convert_to_deg_if_revolute(size_t index, double input, double& output) const
+{
+    if (index >= jointTypes.size())
+    {
+        return false;
+    }
+    if (jointTypes[index] == 0) // Revolute joint
+    {
+        output = input * rad2deg;
+        return true;
+    }
+    output = input;
+    return true;
+}
+
+bool yarp::dev::IsaacSimControlBoardNWCROS2::JointsState::convert_to_rad_if_revolute(size_t index, double input, double& output) const
+{
+    if (index >= jointTypes.size())
+    {
+        return false;
+    }
+    if (jointTypes[index] == 0) // Revolute joint
+    {
+        output = input * deg2rad;
+        return true;
+    }
+    output = input;
+    return true;
 }
 
 void yarp::dev::IsaacSimControlBoardNWCROS2::JointsState::resize()
