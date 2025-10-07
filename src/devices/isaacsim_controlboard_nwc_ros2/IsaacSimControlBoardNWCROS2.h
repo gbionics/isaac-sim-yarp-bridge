@@ -506,6 +506,8 @@ private:
     IsaacSimControlBoardNWCROS2_ParamsParser m_paramsParser;
     JointsState m_jointState, m_motorState, m_jointReferences;
     std::vector<std::string> m_jointNames;
+    std::vector<double> m_compliantOffset;
+    std::vector<bool> m_compliant;
     std::atomic<bool> m_ready{ false };
 };
 #endif

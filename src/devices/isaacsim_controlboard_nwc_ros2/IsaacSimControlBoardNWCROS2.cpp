@@ -2882,17 +2882,32 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefVelocities(const int n_joint,
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getInteractionMode(int j, yarp::dev::InteractionModeEnum* mode)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    std::string errorPrefix = "[getInteractionMode] ";
-    std::string suffix_tag = "[" + std::to_string(j) + "]";
-    auto results = m_node->getParameters({ {compliant_modes_tag + suffix_tag, Type::PARAMETER_BOOL} });
-    if (results.size() != 1)
+    bool compliant;
+    size_t currentSize;
     {
-        yCError(CB) << errorPrefix << "Error while getting interaction mode for joint" << j << ".";
-        return false;
-    }
+        std::lock_guard<std::mutex> lock(m_mutex);
+        std::string errorPrefix = "[getInteractionMode] ";
+        std::string suffix_tag = "[" + std::to_string(j) + "]";
+        auto results = m_node->getParameters({ {compliant_modes_tag + suffix_tag, Type::PARAMETER_BOOL} });
+        if (results.size() != 1)
+        {
+            yCError(CB) << errorPrefix << "Error while getting interaction mode for joint" << j << ".";
+            return false;
+        }
+        compliant = results[0].bool_value;
 
-    *mode = results[0].bool_value ? yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT : yarp::dev::InteractionModeEnum::VOCAB_IM_STIFF;
+        *mode = compliant ? yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT : yarp::dev::InteractionModeEnum::VOCAB_IM_STIFF;
+        currentSize = m_compliant.size();
+    }
+    if (j >= currentSize || !m_ready)
+    {
+        m_ready = false;
+        // There was no error, yet the cached size is not compatible,
+        // so we need to setup again to also update the cached values
+        setup();
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_compliant[j] = compliant;
     return true;
 }
 
@@ -2907,15 +2922,18 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getInteractionModes(int n_joints, i
         return false;
     }
 
+    m_compliant = results[0].bool_array_value; //Update the cached value
+    m_compliantOffset.resize(m_compliant.size(), 0.0);
+
     for (int i = 0; i < n_joints; i++)
     {
         int j = joints[i];
-        if (j < 0 || j >= static_cast<int>(results[0].bool_array_value.size()))
+        if (j < 0 || j >= static_cast<int>(m_compliant.size()))
         {
-            yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << results[0].bool_array_value.size() - 1 << "]";
+            yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_compliant.size() - 1 << "]";
             return false;
         }
-        modes[i] = results[0].bool_array_value[j] ? yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT : yarp::dev::InteractionModeEnum::VOCAB_IM_STIFF;
+        modes[i] = m_compliant[j] ? yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT : yarp::dev::InteractionModeEnum::VOCAB_IM_STIFF;
     }
     return true;
 }
@@ -2931,67 +2949,120 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getInteractionModes(yarp::dev::Inte
         return false;
     }
 
-    for (size_t i = 0; i < results[0].bool_array_value.size(); i++)
+    m_compliant = results[0].bool_array_value; //Update the cached value
+    m_compliantOffset.resize(m_compliant.size(), 0.0);
+
+    for (size_t i = 0; i < m_compliant.size(); i++)
     {
-        modes[i] = results[0].bool_array_value[i] ? yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT : yarp::dev::InteractionModeEnum::VOCAB_IM_STIFF;
+        modes[i] = m_compliant[i] ? yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT : yarp::dev::InteractionModeEnum::VOCAB_IM_STIFF;
     }
     return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setInteractionMode(int j, yarp::dev::InteractionModeEnum mode)
 {
+    bool compliant = (mode == yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT);
+    size_t currentSize;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        std::string errorPrefix = "[setInteractionMode] ";
+        std::string suffix_tag = "[" + std::to_string(j) + "]";
+        rcl_interfaces::msg::Parameter compliant_mode_param;
+        compliant_mode_param.name = compliant_modes_tag + suffix_tag;
+        compliant_mode_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
+        compliant_mode_param.value.bool_value = compliant;
+        auto results = m_node->setParameters({ compliant_mode_param });
+        if (results.size() != 1)
+        {
+            yCError(CB) << errorPrefix << "Error while setting interaction mode for joint" << j << ".";
+            return false;
+        }
+        if (!results[0].successful)
+        {
+            yCError(CB) << errorPrefix << "Error while setting interaction mode for joint" << j << ":" << results[0].reason;
+            return false;
+        }
+        currentSize = m_compliant.size();
+    }
+
+    if (j >= currentSize || !m_ready)
+    {
+        m_ready = false;
+        // There was no error, yet the cached size is not compatible,
+        // so we need to setup again to also update the cached values
+        setup();
+    }
     std::lock_guard<std::mutex> lock(m_mutex);
-    std::string errorPrefix = "[setInteractionMode] ";
-    std::string suffix_tag = "[" + std::to_string(j) + "]";
-    rcl_interfaces::msg::Parameter compliant_mode_param;
-    compliant_mode_param.name = compliant_modes_tag + suffix_tag;
-    compliant_mode_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
-    compliant_mode_param.value.bool_value = (mode == yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT);
-    auto results = m_node->setParameters({ compliant_mode_param });
-    if (results.size() != 1)
-    {
-        yCError(CB) << errorPrefix << "Error while setting interaction mode for joint" << j << ".";
-        return false;
-    }
-    if (!results[0].successful)
-    {
-        yCError(CB) << errorPrefix << "Error while setting interaction mode for joint" << j << ":" << results[0].reason;
-        return false;
-    }
+    m_compliant[j] = compliant;
     return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setInteractionModes(int n_joints, int* joints, yarp::dev::InteractionModeEnum* modes)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    std::string errorPrefix = "[setInteractionModes] ";
-    std::vector<rcl_interfaces::msg::Parameter> compliant_mode_params;
-    for (int i = 0; i < n_joints; i++)
+    bool success = true;
+    int max_index = 0;
+    size_t current_size;
+    std::vector<rcl_interfaces::msg::SetParametersResult> results;
     {
-        int j = joints[i];
-        yarp::dev::InteractionModeEnum mode = modes[i];
-        std::string suffix_tag = "[" + std::to_string(j) + "]";
-        rcl_interfaces::msg::Parameter compliant_mode_param;
-        compliant_mode_param.name = compliant_modes_tag + suffix_tag;
-        compliant_mode_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
-        compliant_mode_param.value.bool_value = (mode == yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT);
-        compliant_mode_params.push_back(compliant_mode_param);
-    }
-    auto results = m_node->setParameters(compliant_mode_params);
-    if (results.size() != static_cast<size_t>(n_joints))
-    {
-        yCError(CB) << errorPrefix << "Error while setting interaction modes.";
-        return false;
-    }
-    for (int i = 0; i < n_joints; i++)
-    {
-        if (!results[i].successful)
+        std::lock_guard<std::mutex> lock(m_mutex);
+        std::string errorPrefix = "[setInteractionModes] ";
+        std::vector<rcl_interfaces::msg::Parameter> compliant_mode_params;
+        for (int i = 0; i < n_joints; i++)
         {
-            yCError(CB) << errorPrefix << "Error while setting interaction mode for joint" << joints[i] << ":" << results[i].reason;
+            int j = joints[i];
+            yarp::dev::InteractionModeEnum mode = modes[i];
+            std::string suffix_tag = "[" + std::to_string(j) + "]";
+            rcl_interfaces::msg::Parameter compliant_mode_param;
+            compliant_mode_param.name = compliant_modes_tag + suffix_tag;
+            compliant_mode_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
+            compliant_mode_param.value.bool_value = (mode == yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT);
+            compliant_mode_params.push_back(compliant_mode_param);
+        }
+        results = m_node->setParameters(compliant_mode_params);
+        if (results.size() != static_cast<size_t>(n_joints))
+        {
+            yCError(CB) << errorPrefix << "Error while setting interaction modes.";
             return false;
         }
+        for (int i = 0; i < n_joints; i++)
+        {
+            if (results[i].successful)
+            {
+                int j = joints[i];
+                if (j > max_index)
+                {
+                    max_index = j;
+                }
+            }
+            else
+            {
+                // How to update cached values
+                yCError(CB) << errorPrefix << "Error while setting interaction mode for joint" << joints[i] << ":" << results[i].reason;
+                success = false;
+            }
+        }
+        current_size = m_compliant.size();
     }
-    return true;
+    if (max_index >= static_cast<int>(current_size) || !m_ready)
+    {
+        m_ready = false;
+        // There was no error, yet the cached size is not compatible,
+        // so we need to setup again to also update the cached values
+        setup();
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (int i = 0; i < n_joints; i++)
+    {
+        if (results[i].successful)
+        {
+            int j = joints[i];
+            yarp::dev::InteractionModeEnum mode = modes[i];
+            m_compliant[j] = (mode == yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT);
+            m_compliantOffset[j] = 0.0;
+        }
+    }
+
+    return success;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setInteractionModes(yarp::dev::InteractionModeEnum* modes)
@@ -3030,6 +3101,9 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setInteractionModes(yarp::dev::Inte
         yCError(CB) << errorPrefix << "Error while setting interaction modes:" << results[0].reason;
         return false;
     }
+    m_compliant = compliant_mode_param.value.bool_array_value; //Update the cached value
+    m_compliantOffset.resize(m_compliant.size());
+    std::fill(m_compliantOffset.begin(), m_compliantOffset.end(), 0.0);
     return true;
 }
 
@@ -3191,7 +3265,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setup()
         return m_ready;
     }
 
-    auto result = m_node->getParameters({ {joint_names_tag, Type::PARAMETER_STRING_ARRAY}, {joint_types_tag, Type::PARAMETER_INTEGER_ARRAY} });
+    // The impedance offset is set continuosly from outside,
+    // but this is using the effort part in the refences message.
+    // So we need to keep track of which joints are actually in
+    // compliant mode to avoid overwriting a real effort reference.
+
+    auto result = m_node->getParameters({ {joint_names_tag, Type::PARAMETER_STRING_ARRAY},
+                                          {joint_types_tag, Type::PARAMETER_INTEGER_ARRAY},
+                                          {compliant_modes_tag, Type::PARAMETER_BOOL_ARRAY} });
     if (result.size() != 2)
     {
         yCError(CB) << errorPrefix << "Error while getting joint names and types.";
@@ -3205,7 +3286,18 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setup()
         m_ready = false;
         return m_ready;
     }
+
+    if (result[0].string_array_value.size() != result[2].bool_array_value.size())
+    {
+        yCError(CB) << errorPrefix << "Joint names and compliant modes have different size.";
+        m_ready = false;
+        return m_ready;
+    }
+
     m_jointNames = result[0].string_array_value;
+    m_compliant = result[2].bool_array_value;
+    m_compliantOffset.resize(m_compliant.size(), 0.0);
+
     {
         std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
         m_jointState.jointTypes = result[1].integer_array_value;
