@@ -451,6 +451,21 @@ private:
 
     void updateMotorMeasurements(const sensor_msgs::msg::JointState::ConstSharedPtr msg);
 
+    struct JointsState
+    {
+        std::vector<std::string> name;
+        std::vector<double> position;
+        std::vector<double> velocity;
+        std::vector<double> effort;
+        std::vector<int64_t> jointTypes;
+        yarp::os::Stamp timestamp;
+        std::atomic<bool> valid{ false };
+        mutable std::mutex mutex;
+        void convert_to_vectors(const sensor_msgs::msg::JointState::ConstSharedPtr& js);
+        void convert_to_msg(sensor_msgs::msg::JointState& js) const;
+        void resize();
+        void invalidate();
+    };
 
     class CBNode : public rclcpp::Node
     {
@@ -470,6 +485,8 @@ private:
 
         std::vector<rcl_interfaces::msg::SetParametersResult> setParameters(const std::vector<rcl_interfaces::msg::Parameter>& params);
 
+        void publishReferences(JointsState& msg);
+
         bool areServicesAvailable();
 
     private:
@@ -478,20 +495,8 @@ private:
         rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr m_referencesPublisher;
         rclcpp::Client<rcl_interfaces::srv::GetParameters>::SharedPtr m_getParamClient;
         rclcpp::Client<rcl_interfaces::srv::SetParameters>::SharedPtr m_setParamClient;
+        sensor_msgs::msg::JointState m_referencesMessageBuffer;
         std::chrono::duration<double> m_requestsTimeout;
-    };
-
-    struct JointsState
-    {
-        std::vector<std::string> name;
-        std::vector<double> position;
-        std::vector<double> velocity;
-        std::vector<double> effort;
-        std::vector<int64_t> jointTypes;
-        yarp::os::Stamp timestamp;
-        std::atomic<bool> valid{ false };
-        mutable std::mutex mutex;
-        void convert_to_vectors(const sensor_msgs::msg::JointState::ConstSharedPtr& js);
     };
 
     std::shared_ptr<CBNode> m_node;
@@ -499,7 +504,7 @@ private:
     std::mutex m_mutex;
     std::thread m_executorThread;
     IsaacSimControlBoardNWCROS2_ParamsParser m_paramsParser;
-    JointsState m_jointState, m_motorState;
+    JointsState m_jointState, m_motorState, m_jointReferences;
     std::vector<std::string> m_jointNames;
     std::atomic<bool> m_ready{ false };
 };

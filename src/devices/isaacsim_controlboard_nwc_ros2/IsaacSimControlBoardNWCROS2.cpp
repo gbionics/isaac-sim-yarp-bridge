@@ -4,10 +4,13 @@
 #include <yarp/os/LogComponent.h>
 #include <yarp/os/LogStream.h>
 
+#include <limits>
+
 YARP_DECLARE_LOG_COMPONENT(CB)
 YARP_LOG_COMPONENT(CB, "yarp.device.IsaacSimControlBoardNWCROS2")
 
 constexpr double rad2deg = 180.0 / M_PI;
+constexpr double deg2rad = M_PI / 180.0;
 
 static const std::string joint_names_tag = "joint_names";
 static const std::string joint_types_tag = "joint_types";
@@ -3173,6 +3176,11 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefCurrent(int m, double* curr)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setup()
 {
+    if (m_ready)
+    {
+        return m_ready;
+    }
+
     std::lock_guard<std::mutex> lock(m_mutex);
 
     std::string errorPrefix = "[setup] ";
@@ -3201,6 +3209,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setup()
     {
         std::lock_guard<std::mutex> lock_measurements(m_jointState.mutex);
         m_jointState.jointTypes = result[1].integer_array_value;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock_references(m_jointReferences.mutex);
+        m_jointReferences.name = m_jointNames;
+        m_jointReferences.jointTypes = result[1].integer_array_value;
+        m_jointReferences.resize();
     }
 
     m_ready = true;
@@ -3246,13 +3261,48 @@ void yarp::dev::IsaacSimControlBoardNWCROS2::JointsState::convert_to_vectors(con
                 position[i] *= rad2deg;
                 velocity[i] *= rad2deg;
             }
-            // Assuming that there is no conversion for linear actuators
+            // Assuming that there is no conversion for linear joints
         }
     }
     effort = js->effort;
     timestamp.update(js->header.stamp.sec + js->header.stamp.nanosec * 1e-9);
     valid = true;
 }
+
+void yarp::dev::IsaacSimControlBoardNWCROS2::JointsState::convert_to_msg(sensor_msgs::msg::JointState& js) const
+{
+    bool useConversions = jointTypes.size() == name.size();
+    js.name = name;
+    js.position = position;
+    js.velocity = velocity;
+    if (useConversions) {
+        for (size_t i = 0; i < position.size(); i++) {
+            if (jointTypes[i] == 0) {
+                js.position[i] *= deg2rad;
+                js.velocity[i] *= deg2rad;
+            }
+            // Assuming that there is no conversion for linear joints
+        }
+    }
+    js.effort = effort;
+}
+
+void yarp::dev::IsaacSimControlBoardNWCROS2::JointsState::resize()
+{
+    position.resize(name.size());
+    velocity.resize(name.size());
+    effort.resize(name.size());
+    invalidate();
+}
+
+void yarp::dev::IsaacSimControlBoardNWCROS2::JointsState::invalidate()
+{
+    std::fill(position.begin(), position.end(), std::numeric_limits<double>::quiet_NaN());
+    std::fill(velocity.begin(), velocity.end(), std::numeric_limits<double>::quiet_NaN());
+    std::fill(effort.begin(), effort.end(), std::numeric_limits<double>::quiet_NaN());
+    valid = false;
+}
+
 yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::CBNode(const std::string& node_name,
                                                        const std::string& joint_state_topic_name,
                                                        const std::string& motor_state_topic_name,
@@ -3334,6 +3384,19 @@ std::vector<rcl_interfaces::msg::SetParametersResult> yarp::dev::IsaacSimControl
         return std::vector<rcl_interfaces::msg::SetParametersResult>();
     }
     return result.get()->results;
+}
+
+void yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::publishReferences(JointsState& msg)
+{
+    if (!msg.valid.load())
+    {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(msg.mutex);
+    msg.convert_to_msg(m_referencesMessageBuffer);
+    m_referencesMessageBuffer.header.stamp = this->now();
+    m_referencesPublisher->publish(m_referencesMessageBuffer);
+    msg.invalidate();
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::areServicesAvailable()
