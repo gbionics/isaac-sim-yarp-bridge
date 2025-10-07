@@ -455,6 +455,8 @@ private:
     class CBNode : public rclcpp::Node
     {
     public:
+
+        using Parameters = std::vector<std::pair<std::string, uint8_t>>;
         explicit CBNode(const std::string& node_name,
                         const std::string& joint_state_topic_name,
                         const std::string& motor_state_topic_name,
@@ -464,7 +466,7 @@ private:
                         double requests_timeout_sec,
                         IsaacSimControlBoardNWCROS2* parent);
 
-        std::vector<rcl_interfaces::msg::ParameterValue> getParameters(const std::vector<std::string>& names);
+        std::vector<rcl_interfaces::msg::ParameterValue> getParameters(const Parameters& parameters);
 
         std::vector<rcl_interfaces::msg::SetParametersResult> setParameters(const std::vector<rcl_interfaces::msg::Parameter>& params);
 

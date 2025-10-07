@@ -60,6 +60,8 @@ static const std::string motor_current_noise_variance_tag = "motor_current_noise
 static const std::string motor_spring_stiffness_tag = "motor_spring_stiffness";
 static const std::string motor_max_currents_tag = "motor_max_currents";
 
+using Type = rcl_interfaces::msg::ParameterType;
+
 yarp::dev::IsaacSimControlBoardNWCROS2::~IsaacSimControlBoardNWCROS2()
 {
     close();
@@ -560,23 +562,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidError(const yarp::dev::PidCon
        return false;
    }
 
-   auto result = m_node->getParameters({ parameter_name });
+   auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE} });
    if (result.size() != 1)
    {
        yCError(CB) << errorPrefix << "Error while getting pid error for type " << pid_type_str << "joint" << j;
-       return false;
-   }
-
-   if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-   {
-       yCError(CB) << errorPrefix << "Error while retrieving the pid error for type " << pid_type_str << "joint" << j;
-       return false;
-   }
-
-   if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-   {
-       yCError(CB) << errorPrefix << "Error while getting pid error for type "
-                                  << pid_type_str << "joint" << j << ". Wrong parameter type.";
        return false;
    }
 
@@ -618,22 +607,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrors(const yarp::dev::PidCo
        return false;
    }
 
-   auto result = m_node->getParameters({ parameter_name });
+   auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE_ARRAY} });
    if (result.size() != 1)
    {
        yCError(CB) << errorPrefix << "Error while getting pid errors for type " << pid_type_str << ".";
-       return false;
-   }
-
-   if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-   {
-       yCError(CB) << errorPrefix << "Error while retrieving the pid errors for type " << pid_type_str << ".";
-       return false;
-   }
-
-   if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
-   {
-       yCError(CB) << errorPrefix << "Error while getting pid errors for type " << pid_type_str << ". Wrong parameter type.";
        return false;
    }
 
@@ -675,23 +652,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidOutput(const yarp::dev::PidCo
        return false;
    }
 
-   auto result = m_node->getParameters({ parameter_name });
+   auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE} });
    if (result.size() != 1)
    {
        yCError(CB) << errorPrefix << "Error while getting pid output for type " << pid_type_str << "joint" << j;
-       return false;
-   }
-
-   if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-   {
-       yCError(CB) << errorPrefix << "Error while retrieving the pid output for type " << pid_type_str << "joint" << j;
-       return false;
-   }
-
-   if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-   {
-       yCError(CB) << errorPrefix << "Error while getting pid output for type "
-                                  << pid_type_str << "joint" << j << ". Wrong parameter type.";
        return false;
    }
 
@@ -733,22 +697,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidOutputs(const yarp::dev::PidC
        return false;
    }
 
-   auto result = m_node->getParameters({ parameter_name });
+   auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE_ARRAY} });
    if (result.size() != 1)
    {
        yCError(CB) << errorPrefix << "Error while getting pid outputs for type " << pid_type_str << ".";
-       return false;
-   }
-
-   if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-   {
-       yCError(CB) << errorPrefix << "Error while retrieving the pid outputs for type " << pid_type_str << ".";
-       return false;
-   }
-
-   if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
-   {
-       yCError(CB) << errorPrefix << "Error while getting pid outputs for type " << pid_type_str << ". Wrong parameter type.";
        return false;
    }
 
@@ -767,25 +719,25 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPid(const yarp::dev::PidControlT
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getPid] ";
     std::string suffix_tag = "[" + std::to_string(j) + "]";
-    std::vector<std::string> parameter_names;
+    CBNode::Parameters parameters;
     std::string pid_type_str;
 
     if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
     {
-        parameter_names = { position_p_gains_tag + suffix_tag,
-                            position_i_gains_tag + suffix_tag,
-                            position_d_gains_tag + suffix_tag,
-                            position_max_integral_tag + suffix_tag,
-                            position_max_output_tag + suffix_tag };
+        parameters = { {position_p_gains_tag + suffix_tag, Type::PARAMETER_DOUBLE},
+                       {position_i_gains_tag + suffix_tag, Type::PARAMETER_DOUBLE},
+                       {position_d_gains_tag + suffix_tag, Type::PARAMETER_DOUBLE},
+                       {position_max_integral_tag + suffix_tag, Type::PARAMETER_DOUBLE},
+                       {position_max_output_tag + suffix_tag, Type::PARAMETER_DOUBLE} };
         pid_type_str = "position";
     }
     else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
     {
-        parameter_names = { velocity_p_gains_tag + suffix_tag,
-                            velocity_i_gains_tag + suffix_tag,
-                            velocity_d_gains_tag + suffix_tag,
-                            velocity_max_integral_tag + suffix_tag,
-                            velocity_max_output_tag + suffix_tag };
+        parameters = { {velocity_p_gains_tag + suffix_tag, Type::PARAMETER_DOUBLE},
+                       {velocity_i_gains_tag + suffix_tag, Type::PARAMETER_DOUBLE},
+                       {velocity_d_gains_tag + suffix_tag, Type::PARAMETER_DOUBLE},
+                       {velocity_max_integral_tag + suffix_tag, Type::PARAMETER_DOUBLE},
+                       {velocity_max_output_tag + suffix_tag, Type::PARAMETER_DOUBLE} };
         pid_type_str = "velocity";
     }
     else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
@@ -804,31 +756,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPid(const yarp::dev::PidControlT
         return false;
     }
 
-    auto results = m_node->getParameters(parameter_names);
-    if (results.size() != parameter_names.size())
+    auto results = m_node->getParameters(parameters);
+    if (results.size() != parameters.size())
     {
         yCError(CB) << errorPrefix << "Error while getting pid parameters for type " << pid_type_str  << "joint" << j;
         return false;
     }
 
-    bool success = true;
-    for (size_t i = 0; i < results.size(); ++i)
-    {
-        if (results[i].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-        {
-            yCError(CB) << errorPrefix << "Error while retrieving the pid parameter" << parameter_names[i] << "for type" << pid_type_str << ".";
-            success = false;
-        }
-        if (results[i].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-        {
-            yCError(CB) << errorPrefix << "Error while getting pid parameter" << parameter_names[i] << "for type" << pid_type_str << ". Wrong parameter type.";
-            success = false;
-        }
-    }
-    if (!success)
-    {
-        return false;
-    }
     p->kp = results[0].double_value;
     p->ki = results[1].double_value;
     p->kd = results[2].double_value;
@@ -842,25 +776,25 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPids(const yarp::dev::PidControl
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getPids] ";
 
-    std::vector<std::string> parameter_names;
+    CBNode::Parameters parameters;
     std::string pid_type_str;
 
     if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
     {
-        parameter_names = { position_p_gains_tag,
-                            position_i_gains_tag,
-                            position_d_gains_tag,
-                            position_max_integral_tag,
-                            position_max_output_tag };
+        parameters = { {position_p_gains_tag, Type::PARAMETER_DOUBLE_ARRAY},
+                       {position_i_gains_tag, Type::PARAMETER_DOUBLE_ARRAY},
+                       {position_d_gains_tag, Type::PARAMETER_DOUBLE_ARRAY},
+                       {position_max_integral_tag, Type::PARAMETER_DOUBLE_ARRAY},
+                       {position_max_output_tag,Type::PARAMETER_DOUBLE_ARRAY} };
         pid_type_str = "position";
     }
     else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
     {
-        parameter_names = { velocity_p_gains_tag,
-                            velocity_i_gains_tag,
-                            velocity_d_gains_tag,
-                            velocity_max_integral_tag,
-                            velocity_max_output_tag };
+        parameters = { {velocity_p_gains_tag, Type::PARAMETER_DOUBLE_ARRAY},
+                       {velocity_i_gains_tag,Type::PARAMETER_DOUBLE_ARRAY},
+                       {velocity_d_gains_tag, Type::PARAMETER_DOUBLE_ARRAY},
+                       {velocity_max_integral_tag,Type::PARAMETER_DOUBLE_ARRAY},
+                       {velocity_max_output_tag, Type::PARAMETER_DOUBLE_ARRAY} };
         pid_type_str = "velocity";
     }
     else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
@@ -879,31 +813,11 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPids(const yarp::dev::PidControl
         return false;
     }
 
-    auto results = m_node->getParameters(parameter_names);
+    auto results = m_node->getParameters(parameters);
 
-    if (results.size() != parameter_names.size())
+    if (results.size() != parameters.size())
     {
         yCError(CB) << errorPrefix << "Error while getting pid parameters for type " << pid_type_str << ".";
-        return false;
-    }
-
-    bool success = true;
-    for (size_t i = 0; i < results.size(); ++i)
-    {
-        if (results[i].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-        {
-            yCError(CB) << errorPrefix << "Error while retrieving the pid parameter" << parameter_names[i] << "for type" << pid_type_str << ".";
-            success = false;
-        }
-        if (results[i].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
-        {
-            yCError(CB) << errorPrefix << "Error while getting pid parameter" << parameter_names[i] << "for type" << pid_type_str << ". Wrong parameter type.";
-            success = false;
-        }
-    }
-
-    if (!success)
-    {
         return false;
     }
 
@@ -953,24 +867,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidReference(const yarp::dev::Pi
         return false;
     }
 
-    auto result = m_node->getParameters({ parameter_name });
+    auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE} });
 
     if (result.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting pid reference for type " << pid_type_str << "joint" << j;
         return false;
     }
-    if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving the pid reference for type " << pid_type_str << "joint" << j;
-        return false;
-    }
-    if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-    {
-        yCError(CB) << errorPrefix << "Error while getting pid reference for type "
-                                   << pid_type_str << "joint" << j << ". Wrong parameter type.";
-        return false;
-    }
+
     *ref = result[0].double_value;
 
     return true;
@@ -1009,23 +913,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidReferences(const yarp::dev::P
         return false;
     }
 
-    auto result = m_node->getParameters({ parameter_name });
+    auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE_ARRAY} });
 
     if (result.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting pid references for type " << pid_type_str << ".";
         return false;
     }
-    if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving the pid references for type " << pid_type_str << ".";
-        return false;
-    }
-    if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
-    {
-        yCError(CB) << errorPrefix << "Error while getting pid references for type " << pid_type_str << ". Wrong parameter type.";
-        return false;
-    }
+
     std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), refs);
     return true;
 }
@@ -1064,23 +959,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrorLimit(const yarp::dev::P
         return false;
     }
 
-    auto result = m_node->getParameters({ parameter_name });
+    auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE} });
     if (result.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting pid error limit for type " << pid_type_str << "joint" << j;
         return false;
     }
-    if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving the pid error limit for type " << pid_type_str << "joint" << j;
-        return false;
-    }
-    if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-    {
-        yCError(CB) << errorPrefix << "Error while getting pid error limit for type "
-                                   << pid_type_str << "joint" << j << ". Wrong parameter type.";
-        return false;
-    }
+
     *limit = result[0].double_value;
     return true;
 }
@@ -1118,22 +1003,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrorLimits(const yarp::dev::
         return false;
     }
 
-    auto result = m_node->getParameters({ parameter_name });
+    auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE_ARRAY} });
     if (result.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting pid error limits for type " << pid_type_str << ".";
         return false;
     }
-    if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving the pid error limits for type " << pid_type_str << ".";
-        return false;
-    }
-    if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
-    {
-        yCError(CB) << errorPrefix << "Error while getting pid error limits for type " << pid_type_str << ". Wrong parameter type.";
-        return false;
-    }
+
     std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), limits);
     return true;
 }
@@ -1351,23 +1227,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::isPidEnabled(const yarp::dev::PidCo
         return false;
     }
 
-    auto result = m_node->getParameters({ parameter_name });
+    auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_BOOL} });
     if (result.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting if pid is enabled for type " << pid_type_str << "joint" << j;
         return false;
     }
-    if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving if pid is enabled for type " << pid_type_str << "joint" << j;
-        return false;
-    }
-    if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_BOOL)
-    {
-        yCError(CB) << errorPrefix << "Error while getting if pid is enabled for type "
-            << pid_type_str << "joint" << j << ". Wrong parameter type.";
-        return false;
-    }
+
     *enabled = result[0].bool_value;
     return true;
 }
@@ -1448,21 +1314,11 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::checkMotionDone(int j, bool* flag)
 
     std::string suffix_tag = "[" + std::to_string(j) + "]";
 
-    auto results = m_node->getParameters({ is_motion_done_tag + suffix_tag });
+    auto results = m_node->getParameters({ {is_motion_done_tag + suffix_tag, Type::PARAMETER_BOOL} });
 
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting motion done state.";
-        return false;
-    }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving motion done state.";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_BOOL)
-    {
-        yCError(CB) << errorPrefix << "Error while getting motion done state. Wrong parameter type.";
         return false;
     }
 
@@ -1475,21 +1331,11 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::checkMotionDone(bool* flag)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[checkMotionDone] ";
-    auto results = m_node->getParameters({ is_motion_done_tag });
+    auto results = m_node->getParameters({ {is_motion_done_tag, Type::PARAMETER_BOOL_ARRAY} });
 
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting motion done state.";
-        return false;
-    }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving motion done state.";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_BOOL_ARRAY)
-    {
-        yCError(CB) << errorPrefix << "Error while getting motion done state. Wrong parameter type.";
         return false;
     }
 
@@ -1512,23 +1358,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::checkMotionDone(const int n_joints,
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[checkMotionDone] ";
 
-    auto results = m_node->getParameters({ is_motion_done_tag });
+    auto results = m_node->getParameters({ {is_motion_done_tag, Type::PARAMETER_BOOL_ARRAY} });
 
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting motion done state.";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving motion done state.";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_BOOL_ARRAY)
-    {
-        yCError(CB) << errorPrefix << "Error while getting motion done state. Wrong parameter type.";
-        return false;
-    }
+
     const auto& motion_done_array = results[0].bool_array_value;
 
     for (int i = 0; i < n_joints; i++)
@@ -1720,22 +1557,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getLastJointFault(int j, int& fault
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getLastJointFault] ";
     std::string suffix_tag = "[" + std::to_string(j) + "]";
-    auto results = m_node->getParameters({ hf_messages_tag + suffix_tag });
+    auto results = m_node->getParameters({ {hf_messages_tag + suffix_tag, Type::PARAMETER_STRING} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting last joint fault.";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving last joint fault.";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_STRING)
-    {
-        yCError(CB) << errorPrefix << "Error while getting last joint fault. Wrong parameter type.";
-        return false;
-    }
+
     fault = -1;
     message = results[0].string_value;
     return true;
@@ -2119,22 +1947,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getMaxCurrent(int j, double* v)
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getMaxCurrent] ";
     std::string suffix_tag = "[" + std::to_string(j) + "]";
-    auto results = m_node->getParameters({ motor_max_currents_tag + suffix_tag });
+    auto results = m_node->getParameters({ {motor_max_currents_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting max current for joint" << j << ".";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving max current for joint" << j << ".";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-    {
-        yCError(CB) << errorPrefix << "Error while getting max current for joint" << j << ". Wrong parameter type.";
-        return false;
-    }
+
     *v = results[0].double_value;
     return true;
 }
@@ -2224,24 +2043,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getLimits(int j, double* min, doubl
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getLimits] ";
     std::string suffix_tag = "[" + std::to_string(j) + "]";
-    auto results = m_node->getParameters({ min_positions_tag + suffix_tag, max_positions_tag + suffix_tag });
+    auto results = m_node->getParameters({ {min_positions_tag + suffix_tag, Type::PARAMETER_DOUBLE},
+                                           {max_positions_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 2)
     {
         yCError(CB) << errorPrefix << "Error while getting limits for joint" << j << ".";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET ||
-        results[1].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving limits for joint" << j << ".";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE ||
-        results[1].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-    {
-        yCError(CB) << errorPrefix << "Error while getting limits for joint" << j << ". Wrong parameter type.";
-        return false;
-    }
+
     *min = results[0].double_value;
     *max = results[1].double_value;
     return true;
@@ -2284,22 +2093,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getVelLimits(int j, double* min, do
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getVelLimits] ";
     std::string suffix_tag = "[" + std::to_string(j) + "]";
-    auto results = m_node->getParameters({ max_velocities_tag + suffix_tag });
+    auto results = m_node->getParameters({ {max_velocities_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting velocity limits for joint" << j << ".";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving velocity limits for joint" << j << ".";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-    {
-        yCError(CB) << errorPrefix << "Error while getting velocity limits for joint" << j << ". Wrong parameter type.";
-        return false;
-    }
+
     *max = results[0].double_value;
     *min = -(*max);
     return true;
@@ -2309,17 +2109,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRemoteVariable(std::string key, 
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getRemoteVariable] ";
-    auto results = m_node->getParameters({ key });
+    auto results = m_node->getParameters({ {key, Type::PARAMETER_NOT_SET} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting remote variable" << key << ".";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving remote variable" << key << ".";
-        return false;
-    }
+
     switch (results[0].type)
     {
     case rcl_interfaces::msg::ParameterType::PARAMETER_BOOL:
@@ -2560,22 +2356,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getGearboxRatio(int m, double* val)
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getGearboxRatio] ";
     std::string suffix_tag = "[" + std::to_string(m) + "]";
-    auto results = m_node->getParameters({ gearbox_ratios_tag + suffix_tag });
+    auto results = m_node->getParameters({ {gearbox_ratios_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting gearbox ratio for motor" << m << ".";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving gearbox ratio for motor" << m << ".";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-    {
-        yCError(CB) << errorPrefix << "Error while getting gearbox ratio for motor" << m << ". Wrong parameter type.";
-        return false;
-    }
+
     *val = results[0].double_value;
     return true;
 }
@@ -2691,22 +2478,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorTorqueParams(int j, yarp::d
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getMotorTorqueParams] ";
     std::string suffix_tag = "[" + std::to_string(j) + "]";
-    auto results = m_node->getParameters({ motor_torque_constants_tag + suffix_tag });
+    auto results = m_node->getParameters({ {motor_torque_constants_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting motor torque constant for motor" << j << ".";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving motor torque constant for motor" << j << ".";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-    {
-        yCError(CB) << errorPrefix << "Error while getting motor torque constant for motor" << j << ". Wrong parameter type.";
-        return false;
-    }
+
     params->ktau = results[0].double_value;
 
     return true;
@@ -2811,22 +2589,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTorqueRange(int j, double* min, 
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getTorqueRange] ";
     std::string suffix_tag = "[" + std::to_string(j) + "]";
-    auto results = m_node->getParameters({ max_efforts_tag + suffix_tag });
+    auto results = m_node->getParameters({ {max_efforts_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting max effort for joint" << j << ".";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving max effort for joint" << j << ".";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-    {
-        yCError(CB) << errorPrefix << "Error while getting max effort for joint" << j << ". Wrong parameter type.";
-        return false;
-    }
+
     *max = results[0].double_value;
     *min = -(*max);
     return true;
@@ -2836,20 +2605,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTorqueRanges(double* min, double
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getTorqueRanges] ";
-    auto results = m_node->getParameters({ max_efforts_tag });
+    auto results = m_node->getParameters({ {max_efforts_tag, Type::PARAMETER_DOUBLE_ARRAY} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting max efforts.";
-        return false;
-    }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving max efforts.";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
-    {
-        yCError(CB) << errorPrefix << "Error while getting max efforts. Wrong parameter type.";
         return false;
     }
 
@@ -2866,24 +2625,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getImpedance(int j, double* stiff, 
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getImpedance] ";
     std::string suffix_tag = "[" + std::to_string(j) + "]";
-    auto results = m_node->getParameters({ compliant_stiffness_tag + suffix_tag, compliant_damping_tag + suffix_tag });
+    auto results = m_node->getParameters({ {compliant_stiffness_tag + suffix_tag, Type::PARAMETER_DOUBLE},
+                                                                  {compliant_damping_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 2)
     {
         yCError(CB) << errorPrefix << "Error while getting impedance for joint" << j << ".";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET ||
-        results[1].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving impedance for joint" << j << ".";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE ||
-        results[1].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-    {
-        yCError(CB) << errorPrefix << "Error while getting impedance for joint" << j << ". Wrong parameter type.";
-        return false;
-    }
+
     *stiff = results[0].double_value;
     *damp = results[1].double_value;
     return true;
@@ -2906,20 +2655,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getControlMode(int j, int* mode)
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getControlMode] ";
     std::string suffix_tag = "[" + std::to_string(j) + "]";
-    auto results = m_node->getParameters({ control_modes_tag + suffix_tag });
+    auto results = m_node->getParameters({ {control_modes_tag + suffix_tag, Type::PARAMETER_INTEGER} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting control mode for joint" << j << ".";
-        return false;
-    }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving control mode for joint" << j << ".";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER)
-    {
-        yCError(CB) << errorPrefix << "Error while getting control mode for joint" << j << ". Wrong parameter type.";
         return false;
     }
 
@@ -2932,20 +2671,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getControlModes(int* modes)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getControlModes] ";
-    auto results = m_node->getParameters({ control_modes_tag });
+    auto results = m_node->getParameters({ {control_modes_tag, Type::PARAMETER_INTEGER_ARRAY} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting control modes.";
-        return false;
-    }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving control modes.";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER_ARRAY)
-    {
-        yCError(CB) << errorPrefix << "Error while getting control modes. Wrong parameter type.";
         return false;
     }
     for (size_t i = 0; i < results[0].integer_array_value.size(); i++)
@@ -2959,22 +2688,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getControlModes(const int n_joint, 
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getControlModes] ";
-    auto results = m_node->getParameters({ control_modes_tag });
+    auto results = m_node->getParameters({ {control_modes_tag, Type::PARAMETER_INTEGER_ARRAY} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting control modes.";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving control modes.";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER_ARRAY)
-    {
-        yCError(CB) << errorPrefix << "Error while getting control modes. Wrong parameter type.";
-        return false;
-    }
+
     for (int i = 0; i < n_joint; i++)
     {
         int j = joints[i];
@@ -3162,22 +2882,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getInteractionMode(int j, yarp::dev
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getInteractionMode] ";
     std::string suffix_tag = "[" + std::to_string(j) + "]";
-    auto results = m_node->getParameters({ compliant_modes_tag + suffix_tag });
+    auto results = m_node->getParameters({ {compliant_modes_tag + suffix_tag, Type::PARAMETER_BOOL} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting interaction mode for joint" << j << ".";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving interaction mode for joint" << j << ".";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_BOOL)
-    {
-        yCError(CB) << errorPrefix << "Error while getting interaction mode for joint" << j << ". Wrong parameter type.";
-        return false;
-    }
+
     *mode = results[0].bool_value ? yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT : yarp::dev::InteractionModeEnum::VOCAB_IM_STIFF;
     return true;
 }
@@ -3186,22 +2897,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getInteractionModes(int n_joints, i
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getInteractionModes] ";
-    auto results = m_node->getParameters({ compliant_modes_tag });
+    auto results = m_node->getParameters({ {compliant_modes_tag, Type::PARAMETER_BOOL_ARRAY} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting interaction modes.";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving interaction modes.";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_BOOL_ARRAY)
-    {
-        yCError(CB) << errorPrefix << "Error while getting interaction modes. Wrong parameter type.";
-        return false;
-    }
+
     for (int i = 0; i < n_joints; i++)
     {
         int j = joints[i];
@@ -3219,22 +2921,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getInteractionModes(yarp::dev::Inte
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getInteractionModes] ";
-    auto results = m_node->getParameters({ compliant_modes_tag });
+    auto results = m_node->getParameters({ {compliant_modes_tag, Type::PARAMETER_BOOL_ARRAY} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting interaction modes.";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving interaction modes.";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_BOOL_ARRAY)
-    {
-        yCError(CB) << errorPrefix << "Error while getting interaction modes. Wrong parameter type.";
-        return false;
-    }
+
     for (size_t i = 0; i < results[0].bool_array_value.size(); i++)
     {
         modes[i] = results[0].bool_array_value[i] ? yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT : yarp::dev::InteractionModeEnum::VOCAB_IM_STIFF;
@@ -3411,22 +3104,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrentRange(int m, double* min,
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getCurrentRange] ";
     std::string suffix_tag = "[" + std::to_string(m) + "]";
-    auto results = m_node->getParameters({ motor_max_currents_tag + suffix_tag });
+    auto results = m_node->getParameters({ {motor_max_currents_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting max current for motor" << m << ".";
         return false;
     }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving max current for motor" << m << ".";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE)
-    {
-        yCError(CB) << errorPrefix << "Error while getting max current for motor" << m << ". Wrong parameter type.";
-        return false;
-    }
+
     *max = results[0].double_value;
     *min = -(*max);
     return true;
@@ -3436,20 +3120,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrentRanges(double* min, doubl
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getCurrentRanges] ";
-    auto results = m_node->getParameters({ motor_max_currents_tag });
+    auto results = m_node->getParameters({ {motor_max_currents_tag, Type::PARAMETER_DOUBLE_ARRAY} });
     if (results.size() != 1)
     {
         yCError(CB) << errorPrefix << "Error while getting max currents.";
-        return false;
-    }
-    if (results[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving max currents.";
-        return false;
-    }
-    if (results[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY)
-    {
-        yCError(CB) << errorPrefix << "Error while getting max currents. Wrong parameter type.";
         return false;
     }
 
@@ -3509,28 +3183,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setup()
         return m_ready;
     }
 
-    auto result = m_node->getParameters({ joint_names_tag, joint_types_tag });
-    //TODO simplify error handling
+    auto result = m_node->getParameters({ {joint_names_tag, Type::PARAMETER_STRING_ARRAY}, {joint_types_tag, Type::PARAMETER_INTEGER_ARRAY} });
     if (result.size() != 2)
     {
         yCError(CB) << errorPrefix << "Error while getting joint names and types.";
         m_ready = false;
         return m_ready;
     }
-    if (result[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET ||
-        result[1].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
-    {
-        yCError(CB) << errorPrefix << "Error while retrieving joint names and types.";
-        m_ready = false;
-        return m_ready;
-    }
-    if (result[0].type != rcl_interfaces::msg::ParameterType::PARAMETER_STRING_ARRAY ||
-        result[1].type != rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER_ARRAY)
-    {
-        yCError(CB) << errorPrefix << "Error while getting joint names and types. Wrong parameter type.";
-        m_ready = false;
-        return m_ready;
-    }
+
     if (result[0].string_array_value.size() != result[1].integer_array_value.size())
     {
         yCError(CB) << errorPrefix << "Joint names and types have different size.";
@@ -3620,20 +3280,46 @@ yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::CBNode(const std::string& node_n
     m_requestsTimeout = std::chrono::duration<double>(requests_timeout_sec);
 }
 
-std::vector<rcl_interfaces::msg::ParameterValue> yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::getParameters(const std::vector<std::string>& names)
+std::vector<rcl_interfaces::msg::ParameterValue> yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::getParameters(const Parameters& parameters)
 {
+    std::string errorPrefix = "[getParameters] ";
     auto get_request = std::make_shared<rcl_interfaces::srv::GetParameters::Request>();
-    get_request->names = names;
+    get_request->names.resize(parameters.size());
+    for (size_t i = 0; i < parameters.size(); i++)
+    {
+        get_request->names[i] = parameters[i].first;
+    }
 
     auto result = m_getParamClient->async_send_request(get_request);
 
     if (result.wait_for(m_requestsTimeout) != std::future_status::ready)
     {
-        yCError(CB) << "[getParameters] Service call timed out";
+        yCError(CB) << errorPrefix << "Service call timed out";
         return std::vector<rcl_interfaces::msg::ParameterValue>();
     }
 
-    return result.get()->values;
+    auto& values = result.get()->values;
+    if (values.size() != parameters.size())
+    {
+        yCError(CB) << errorPrefix << "Unexpected number of results. Expected" << parameters.size() << "but got" << values.size();
+        return std::vector<rcl_interfaces::msg::ParameterValue>();
+    }
+
+    for (size_t i = 0; i < parameters.size(); i++)
+    {
+        if (values[i].type == Type::PARAMETER_NOT_SET)
+        {
+            yCError(CB) << errorPrefix << "Parameter" << parameters[i].first << "not set.";
+            return std::vector<rcl_interfaces::msg::ParameterValue>();
+        }
+
+        if (parameters[i].second != Type::PARAMETER_NOT_SET && values[i].type != parameters[i].second)
+        {
+            yCError(CB) << errorPrefix << "Unexpected type for parameter" << parameters[i].first << ". Expected" << parameters[i].second << "but got" << values[i].type;
+            return std::vector<rcl_interfaces::msg::ParameterValue>();
+        }
+    }
+    return values;
 }
 
 
