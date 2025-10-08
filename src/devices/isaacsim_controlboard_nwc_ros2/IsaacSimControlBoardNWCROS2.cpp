@@ -13,7 +13,6 @@ constexpr double rad2deg = 180.0 / M_PI;
 constexpr double deg2rad = M_PI / 180.0;
 
 //TODO: may of the things we get from services need to be converted from rad to deg and viceversa
-//TODO: maybe we can avoid to allow the number of joints to change at runtime, since this will cause certainly issues to the nwc/nws
 
 static const std::string joint_names_tag = "joint_names";
 static const std::string joint_types_tag = "joint_types";
@@ -102,9 +101,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::open(yarp::os::Searchable& config)
         m_executor->add_node(m_node);
         m_executorThread = std::thread([this]() { m_executor->spin(); });
     }
-    setup();
-
-    return true;
+    return setup();
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::close()
@@ -116,13 +113,21 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::close()
         m_executorThread.join();
         m_node.reset();
     }
+    m_ready = false;
     return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPid(const yarp::dev::PidControlTypeEnum& pidtype, int j, const yarp::dev::Pid& p)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[setPid] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::vector<rcl_interfaces::msg::Parameter> params;
     if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
     {
@@ -231,7 +236,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPids(const yarp::dev::PidControl
 {
     std::string errorPrefix = "[setPids] ";
 
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -380,7 +385,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPids(const yarp::dev::PidControl
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidReference(const yarp::dev::PidControlTypeEnum& pidtype, int j, double ref)
 {
     std::string errorPrefix = "[setPidReference] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references.";
         return false;
@@ -423,7 +428,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidReference(const yarp::dev::Pi
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidReferences(const yarp::dev::PidControlTypeEnum& pidtype, const double* refs)
 {
     std::string errorPrefix = "[setPidReferences] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references.";
         return false;
@@ -466,8 +471,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidReferences(const yarp::dev::P
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidErrorLimit(const yarp::dev::PidControlTypeEnum& pidtype, int j, double limit)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[setPidErrorLimit] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::vector<rcl_interfaces::msg::Parameter> params;
     if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
     {
@@ -532,7 +544,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidErrorLimit(const yarp::dev::P
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidErrorLimits(const yarp::dev::PidControlTypeEnum& pidtype, const double* limits)
 {
     std::string errorPrefix = "[setPidErrorLimits] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -610,183 +622,208 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidErrorLimits(const yarp::dev::
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidError(const yarp::dev::PidControlTypeEnum& pidtype, int j, double* err)
 {
-   std::lock_guard<std::mutex> lock(m_mutex);
-   std::string errorPrefix = "[getPidError] ";
+    std::string errorPrefix = "[getPidError] ";
 
-   std::string suffix_tag = "[" + std::to_string(j) + "]";
-   std::string parameter_name;
-   std::string pid_type_str;
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
 
-   if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
-   {
-       parameter_name = position_pid_errors_tag + suffix_tag;
-       pid_type_str = "position";
-   }
-   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
-   {
-       parameter_name = velocity_pid_errors_tag + suffix_tag;
-       pid_type_str = "velocity";
-   }
-   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
-   {
-       parameter_name = torque_pid_errors_tag + suffix_tag;
-       pid_type_str = "torque";
-   }
-   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
-   {
-       parameter_name = current_pid_errors_tag + suffix_tag;
-       pid_type_str = "current";
-   }
-   else
-   {
-       yCError(CB) << errorPrefix << "Unknown pid type.";
-       return false;
-   }
+    std::lock_guard<std::mutex> lock(m_mutex);
 
-   auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE} });
-   if (result.size() != 1)
-   {
-       yCError(CB) << errorPrefix << "Error while getting pid error for type " << pid_type_str << "joint" << j;
-       return false;
-   }
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+    std::string parameter_name;
+    std::string pid_type_str;
 
-   *err = result[0].double_value;
-   return true;
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        parameter_name = position_pid_errors_tag + suffix_tag;
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        parameter_name = velocity_pid_errors_tag + suffix_tag;
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        parameter_name = torque_pid_errors_tag + suffix_tag;
+        pid_type_str = "torque";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        parameter_name = current_pid_errors_tag + suffix_tag;
+        pid_type_str = "current";
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
+
+    auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE} });
+    if (result.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid error for type " << pid_type_str << "joint" << j;
+        return false;
+    }
+
+    *err = result[0].double_value;
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrors(const yarp::dev::PidControlTypeEnum& pidtype, double* errs)
 {
-   std::lock_guard<std::mutex> lock(m_mutex);
-   std::string errorPrefix = "[getPidErrors] ";
+    std::string errorPrefix = "[getPidErrors] ";
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
 
-   std::string parameter_name;
-   std::string pid_type_str;
+    std::lock_guard<std::mutex> lock(m_mutex);
 
-   if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
-   {
-       parameter_name = position_pid_errors_tag;
-       pid_type_str = "position";
-   }
-   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
-   {
-       parameter_name = velocity_pid_errors_tag;
-       pid_type_str = "velocity";
-   }
-   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
-   {
-       parameter_name = torque_pid_errors_tag;
-       pid_type_str = "torque";
-   }
-   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
-   {
-       parameter_name = current_pid_errors_tag;
-       pid_type_str = "current";
-   }
-   else
-   {
-       yCError(CB) << errorPrefix << "Unknown pid type.";
-       return false;
-   }
+    std::string parameter_name;
+    std::string pid_type_str;
 
-   auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE_ARRAY} });
-   if (result.size() != 1)
-   {
-       yCError(CB) << errorPrefix << "Error while getting pid errors for type " << pid_type_str << ".";
-       return false;
-   }
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        parameter_name = position_pid_errors_tag;
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        parameter_name = velocity_pid_errors_tag;
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        parameter_name = torque_pid_errors_tag;
+        pid_type_str = "torque";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        parameter_name = current_pid_errors_tag;
+        pid_type_str = "current";
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
 
-   std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), errs);
-   return true;
+    auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE_ARRAY} });
+    if (result.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid errors for type " << pid_type_str << ".";
+        return false;
+    }
+
+    std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), errs);
+    return true;
 }
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidOutput(const yarp::dev::PidControlTypeEnum& pidtype, int j, double* out)
 {
-   std::lock_guard<std::mutex> lock(m_mutex);
-   std::string errorPrefix = "[getPidOutput] ";
+    std::string errorPrefix = "[getPidOutput] ";
 
-   std::string suffix_tag = "[" + std::to_string(j) + "]";
-   std::string parameter_name;
-   std::string pid_type_str;
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
 
-   if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
-   {
-       parameter_name = position_pid_outputs_tag + suffix_tag;
-       pid_type_str = "position";
-   }
-   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
-   {
-       parameter_name = velocity_pid_outputs_tag + suffix_tag;
-       pid_type_str = "velocity";
-   }
-   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
-   {
-       parameter_name = torque_pid_outputs_tag + suffix_tag;
-       pid_type_str = "torque";
-   }
-   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
-   {
-       parameter_name = current_pid_outputs_tag + suffix_tag;
-       pid_type_str = "current";
-   }
-   else
-   {
-       yCError(CB) << errorPrefix << "Unknown pid type.";
-       return false;
-   }
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+    std::string parameter_name;
+    std::string pid_type_str;
 
-   auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE} });
-   if (result.size() != 1)
-   {
-       yCError(CB) << errorPrefix << "Error while getting pid output for type " << pid_type_str << "joint" << j;
-       return false;
-   }
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        parameter_name = position_pid_outputs_tag + suffix_tag;
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        parameter_name = velocity_pid_outputs_tag + suffix_tag;
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        parameter_name = torque_pid_outputs_tag + suffix_tag;
+        pid_type_str = "torque";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        parameter_name = current_pid_outputs_tag + suffix_tag;
+        pid_type_str = "current";
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
 
-   *out = result[0].double_value;
-   return true;
+    auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE} });
+    if (result.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid output for type " << pid_type_str << "joint" << j;
+        return false;
+    }
+
+    *out = result[0].double_value;
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidOutputs(const yarp::dev::PidControlTypeEnum& pidtype, double* outs)
 {
-   std::lock_guard<std::mutex> lock(m_mutex);
-   std::string errorPrefix = "[getPidOutputs] ";
+    std::string errorPrefix = "[getPidOutputs] ";
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
 
-   std::string parameter_name;
-   std::string pid_type_str;
+    std::lock_guard<std::mutex> lock(m_mutex);
 
-   if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
-   {
-       parameter_name = position_pid_outputs_tag;
-       pid_type_str = "position";
-   }
-   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
-   {
-       parameter_name = velocity_pid_outputs_tag;
-       pid_type_str = "velocity";
-   }
-   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
-   {
-       parameter_name = torque_pid_outputs_tag;
-       pid_type_str = "torque";
-   }
-   else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
-   {
-       parameter_name = current_pid_outputs_tag;
-       pid_type_str = "current";
-   }
-   else
-   {
-       yCError(CB) << errorPrefix << "Unknown pid type.";
-       return false;
-   }
+    std::string parameter_name;
+    std::string pid_type_str;
 
-   auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE_ARRAY} });
-   if (result.size() != 1)
-   {
-       yCError(CB) << errorPrefix << "Error while getting pid outputs for type " << pid_type_str << ".";
-       return false;
-   }
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION)
+    {
+        parameter_name = position_pid_outputs_tag;
+        pid_type_str = "position";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        parameter_name = velocity_pid_outputs_tag;
+        pid_type_str = "velocity";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE)
+    {
+        parameter_name = torque_pid_outputs_tag;
+        pid_type_str = "torque";
+    }
+    else if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_CURRENT)
+    {
+        parameter_name = current_pid_outputs_tag;
+        pid_type_str = "current";
+    }
+    else
+    {
+        yCError(CB) << errorPrefix << "Unknown pid type.";
+        return false;
+    }
 
-   std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), outs);
-   return true;
+    auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE_ARRAY} });
+    if (result.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting pid outputs for type " << pid_type_str << ".";
+        return false;
+    }
+
+    std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), outs);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidOffset(const yarp::dev::PidControlTypeEnum& pidtype, int j, double v)
@@ -797,8 +834,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidOffset(const yarp::dev::PidCo
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPid(const yarp::dev::PidControlTypeEnum& pidtype, int j, yarp::dev::Pid* p)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getPid] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     CBNode::Parameters parameters;
     std::string pid_type_str;
@@ -1322,7 +1366,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::isPidEnabled(const yarp::dev::PidCo
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getAxes(int* ax)
 {
     std::string errorPrefix = "[getAxes] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -1337,7 +1381,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getAxes(int* ax)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::positionMove(int j, double ref)
 {
     std::string errorPrefix = "[positionMove] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -1370,7 +1414,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::positionMove(int j, double ref)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::positionMove(const double* refs)
 {
     std::string errorPrefix = "[positionMove] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references.";
         return false;
@@ -1396,7 +1440,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::positionMove(const double* refs)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::positionMove(const int n_joints, const int* joints, const double* refs)
 {
     std::string errorPrefix = "[positionMove] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references.";
         return false;
@@ -1482,7 +1526,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTargetPositions(const int n_join
 bool yarp::dev::IsaacSimControlBoardNWCROS2::relativeMove(int j, double delta)
 {
     std::string errorPrefix = "[relativeMove] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references.";
         return false;
@@ -1517,7 +1561,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::relativeMove(int j, double delta)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::relativeMove(const double* deltas)
 {
     std::string errorPrefix = "[relativeMove] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references.";
         return false;
@@ -1549,7 +1593,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::relativeMove(const double* deltas)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::relativeMove(const int n_joints, const int* joints, const double* deltas)
 {
     std::string errorPrefix = "[relativeMove] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references.";
         return false;
@@ -1663,7 +1707,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefSpeed(int j, double sp)
 {
     std::string errorPrefix = "[setRefSpeed] ";
 
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -1688,7 +1732,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefSpeed(int j, double sp)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefSpeeds(const double* spds)
 {
     std::string errorPrefix = "[setRefSpeeds] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -1708,7 +1752,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefSpeeds(const double* spds)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefSpeeds(const int n_joints, const int* joints, const double* spds)
 {
     std::string errorPrefix = "[setRefSpeeds] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -1814,7 +1858,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::stop()
 {
     std::string errorPrefix = "[stop] ";
 
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -1846,7 +1890,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::stop()
 bool yarp::dev::IsaacSimControlBoardNWCROS2::stop(const int n_joints, const int* joints)
 {
     std::string errorPrefix = "[stop] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -1903,7 +1947,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getLastJointFault(int j, int& fault
 bool yarp::dev::IsaacSimControlBoardNWCROS2::velocityMove(int j, double v)
 {
     std::string errorPrefix = "[velocityMove] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -1926,7 +1970,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::velocityMove(int j, double v)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::velocityMove(const double* v)
 {
     std::string errorPrefix = "[velocityMove] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -2616,7 +2660,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::homingSingleJoint(int j)
 {
     std::string errorPrefix = "[homingSingleJoint] ";
 
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -2657,7 +2701,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::homingSingleJoint(int j)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::homingWholePart()
 {
     std::string errorPrefix = "[homingWholePart] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -2824,7 +2868,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setGearboxRatio(int m, const double
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getAxisName(int j, std::string& name)
 {
     std::string errorPrefix = "[getAxisName] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -2845,7 +2889,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getAxisName(int j, std::string& nam
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getJointType(int j, yarp::dev::JointTypeEnum& type)
 {
     std::string errorPrefix = "[getJointType] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -2912,7 +2956,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefTorque(int j, double* t)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefTorques(const double* t)
 {
     std::string errorPrefix = "[setRefTorques] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -2931,7 +2975,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefTorques(const double* t)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefTorque(int j, double t)
 {
     std::string errorPrefix = "[setRefTorque] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -2954,7 +2998,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefTorque(int j, double t)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefTorques(const int n_joint, const int* joints, const double* t)
 {
     std::string errorPrefix = "[setRefTorques] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -3298,7 +3342,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setControlModes(int* modes)
         return false;
     }
 
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -3330,7 +3374,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setControlModes(int* modes)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPosition(int j, double ref)
 {
     std::string errorPrefix = "[setPosition] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -3357,7 +3401,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPosition(int j, double ref)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPositions(const int n_joints, const int* joints, const double* dpos)
 {
     std::string errorPrefix = "[setPositions] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -3389,7 +3433,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPositions(const int n_joints, co
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setPositions(const double* refs)
 {
     std::string errorPrefix = "[setPositions] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -3416,7 +3460,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefPosition(const int joint, dou
 {
     std::string errorPrefix = "[getRefPosition] ";
 
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -3437,7 +3481,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefPosition(const int joint, dou
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefPositions(double* refs)
 {
     std::string errorPrefix = "[getRefPositions] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -3461,7 +3505,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefPositions(double* refs)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefPositions(const int n_joint, const int* joints, double* refs)
 {
     std::string errorPrefix = "[getRefPositions] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -3507,7 +3551,7 @@ yarp::os::Stamp yarp::dev::IsaacSimControlBoardNWCROS2::getLastInputStamp()
 bool yarp::dev::IsaacSimControlBoardNWCROS2::velocityMove(const int n_joints, const int* joints, const double* spds)
 {
     std::string errorPrefix = "[velocityMove] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -3536,7 +3580,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::velocityMove(const int n_joints, co
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefVelocity(const int joint, double* vel)
 {
     std::string errorPrefix = "[getRefVelocity] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -3556,7 +3600,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefVelocity(const int joint, dou
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefVelocities(double* vels)
 {
     std::string errorPrefix = "[getRefVelocities] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -3580,7 +3624,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefVelocities(double* vels)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefVelocities(const int n_joint, const int* joints, double* vels)
 {
     std::string errorPrefix = "[getRefVelocities] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -3612,32 +3656,33 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefVelocities(const int n_joint,
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getInteractionMode(int j, yarp::dev::InteractionModeEnum* mode)
 {
-    bool compliant;
-    size_t currentSize;
+    std::string errorPrefix = "[getInteractionMode] ";
+    if (!m_ready)
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        std::string errorPrefix = "[getInteractionMode] ";
-        std::string suffix_tag = "[" + std::to_string(j) + "]";
-        auto results = m_node->getParameters({ {compliant_modes_tag + suffix_tag, Type::PARAMETER_BOOL} });
-        if (results.size() != 1)
-        {
-            yCError(CB) << errorPrefix << "Error while getting interaction mode for joint" << j << ".";
-            return false;
-        }
-        compliant = results[0].bool_value;
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
 
-        *mode = compliant ? yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT : yarp::dev::InteractionModeEnum::VOCAB_IM_STIFF;
-        currentSize = m_compliant.size();
-    }
-    if (j >= currentSize || !m_ready)
-    {
-        m_ready = false;
-        // There was no error, yet the cached size is not compatible,
-        // so we need to setup again to also update the cached values
-        setup();
-    }
     std::lock_guard<std::mutex> lock(m_mutex);
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+
+    if (j < 0 || j >= static_cast<int>(m_compliant.size()))
+    {
+        yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_compliant.size() - 1 << "]";
+        return false;
+    }
+
+    auto results = m_node->getParameters({ {compliant_modes_tag + suffix_tag, Type::PARAMETER_BOOL} });
+    if (results.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting interaction mode for joint" << j << ".";
+        return false;
+    }
+    bool compliant = results[0].bool_value;
+
+    *mode = compliant ? yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT : yarp::dev::InteractionModeEnum::VOCAB_IM_STIFF;
     m_compliant[j] = compliant;
+
     return true;
 }
 
@@ -3691,96 +3736,82 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getInteractionModes(yarp::dev::Inte
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setInteractionMode(int j, yarp::dev::InteractionModeEnum mode)
 {
-    bool compliant = (mode == yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT);
-    size_t currentSize;
+    std::string errorPrefix = "[setInteractionMode] ";
+
+    if (!m_ready)
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        std::string errorPrefix = "[setInteractionMode] ";
-        std::string suffix_tag = "[" + std::to_string(j) + "]";
-        rcl_interfaces::msg::Parameter compliant_mode_param;
-        compliant_mode_param.name = compliant_modes_tag + suffix_tag;
-        compliant_mode_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
-        compliant_mode_param.value.bool_value = compliant;
-        auto results = m_node->setParameters({ compliant_mode_param });
-        if (results.size() != 1)
-        {
-            yCError(CB) << errorPrefix << "Error while setting interaction mode for joint" << j << ".";
-            return false;
-        }
-        if (!results[0].successful)
-        {
-            yCError(CB) << errorPrefix << "Error while setting interaction mode for joint" << j << ":" << results[0].reason;
-            return false;
-        }
-        currentSize = m_compliant.size();
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
     }
 
-    if (j >= currentSize || !m_ready)
-    {
-        m_ready = false;
-        // There was no error, yet the cached size is not compatible,
-        // so we need to setup again to also update the cached values
-        setup();
-    }
+    bool compliant = (mode == yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT);
     std::lock_guard<std::mutex> lock(m_mutex);
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+
+    if (j < 0 || j >= static_cast<int>(m_compliant.size()))
+    {
+        yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_compliant.size() - 1 << "]";
+        return false;
+    }
+
+    rcl_interfaces::msg::Parameter compliant_mode_param;
+    compliant_mode_param.name = compliant_modes_tag + suffix_tag;
+    compliant_mode_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
+    compliant_mode_param.value.bool_value = compliant;
+    auto results = m_node->setParameters({ compliant_mode_param });
+    if (results.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while setting interaction mode for joint" << j << ".";
+        return false;
+    }
+    if (!results[0].successful)
+    {
+        yCError(CB) << errorPrefix << "Error while setting interaction mode for joint" << j << ":" << results[0].reason;
+        return false;
+    }
+
     m_compliant[j] = compliant;
     return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setInteractionModes(int n_joints, int* joints, yarp::dev::InteractionModeEnum* modes)
 {
-    bool success = true;
-    int max_index = 0;
-    size_t current_size;
-    std::vector<rcl_interfaces::msg::SetParametersResult> results;
+    std::string errorPrefix = "[setInteractionModes] ";
+
+    if (!m_ready)
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        std::string errorPrefix = "[setInteractionModes] ";
-        std::vector<rcl_interfaces::msg::Parameter> compliant_mode_params;
-        for (int i = 0; i < n_joints; i++)
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::vector<rcl_interfaces::msg::SetParametersResult> results;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::vector<rcl_interfaces::msg::Parameter> compliant_mode_params;
+    for (int i = 0; i < n_joints; i++)
+    {
+        int j = joints[i];
+
+        if (j < 0 || j >= static_cast<int>(m_compliant.size()))
         {
-            int j = joints[i];
-            yarp::dev::InteractionModeEnum mode = modes[i];
-            std::string suffix_tag = "[" + std::to_string(j) + "]";
-            rcl_interfaces::msg::Parameter compliant_mode_param;
-            compliant_mode_param.name = compliant_modes_tag + suffix_tag;
-            compliant_mode_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
-            compliant_mode_param.value.bool_value = (mode == yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT);
-            compliant_mode_params.push_back(compliant_mode_param);
-        }
-        results = m_node->setParameters(compliant_mode_params);
-        if (results.size() != static_cast<size_t>(n_joints))
-        {
-            yCError(CB) << errorPrefix << "Error while setting interaction modes.";
+            yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << m_compliant.size() - 1 << "]";
             return false;
         }
-        for (int i = 0; i < n_joints; i++)
-        {
-            if (results[i].successful)
-            {
-                int j = joints[i];
-                if (j > max_index)
-                {
-                    max_index = j;
-                }
-            }
-            else
-            {
-                // How to update cached values
-                yCError(CB) << errorPrefix << "Error while setting interaction mode for joint" << joints[i] << ":" << results[i].reason;
-                success = false;
-            }
-        }
-        current_size = m_compliant.size();
+
+        yarp::dev::InteractionModeEnum mode = modes[i];
+        std::string suffix_tag = "[" + std::to_string(j) + "]";
+        rcl_interfaces::msg::Parameter compliant_mode_param;
+        compliant_mode_param.name = compliant_modes_tag + suffix_tag;
+        compliant_mode_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
+        compliant_mode_param.value.bool_value = (mode == yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT);
+        compliant_mode_params.push_back(compliant_mode_param);
     }
-    if (max_index >= static_cast<int>(current_size) || !m_ready)
+    results = m_node->setParameters(compliant_mode_params);
+    if (results.size() != static_cast<size_t>(n_joints))
     {
-        m_ready = false;
-        // There was no error, yet the cached size is not compatible,
-        // so we need to setup again to also update the cached values
-        setup();
+        yCError(CB) << errorPrefix << "Error while setting interaction modes.";
+        return false;
     }
-    std::lock_guard<std::mutex> lock(m_mutex);
+    bool success = true;
     for (int i = 0; i < n_joints; i++)
     {
         if (results[i].successful)
@@ -3789,6 +3820,12 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setInteractionModes(int n_joints, i
             yarp::dev::InteractionModeEnum mode = modes[i];
             m_compliant[j] = (mode == yarp::dev::InteractionModeEnum::VOCAB_IM_COMPLIANT);
             m_compliantOffset[j] = 0.0;
+        }
+        else
+        {
+            // How to update cached values
+            yCError(CB) << errorPrefix << "Error while setting interaction mode for joint" << joints[i] << ":" << results[i].reason;
+            success = false;
         }
     }
 
@@ -3803,7 +3840,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setInteractionModes(yarp::dev::Inte
         yCError(CB) << errorPrefix << "modes is a null pointer.";
         return false;
     }
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -3811,7 +3848,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setInteractionModes(yarp::dev::Inte
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    size_t numberOfJoints = m_jointNames.size();
+    size_t numberOfJoints = m_compliant.size();
     rcl_interfaces::msg::Parameter compliant_mode_param;
     compliant_mode_param.name = compliant_modes_tag;
     compliant_mode_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL_ARRAY;
@@ -3831,8 +3868,8 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setInteractionModes(yarp::dev::Inte
         yCError(CB) << errorPrefix << "Error while setting interaction modes:" << results[0].reason;
         return false;
     }
+
     m_compliant = compliant_mode_param.value.bool_array_value; //Update the cached value
-    m_compliantOffset.resize(m_compliant.size());
     std::fill(m_compliantOffset.begin(), m_compliantOffset.end(), 0.0);
     return true;
 }
@@ -3951,7 +3988,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrentRanges(double* min, doubl
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefCurrents(const double* currs)
 {
     std::string errorPrefix = "[setRefCurrents] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -3973,7 +4010,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefCurrents(const double* currs)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefCurrent(int m, double curr)
 {
     std::string errorPrefix = "[setRefCurrent] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -3996,7 +4033,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefCurrent(int m, double curr)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefCurrents(const int n_motor, const int* motors, const double* currs)
 {
     std::string errorPrefix = "[setRefCurrents] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Not ready to send references";
         return false;
@@ -4024,7 +4061,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefCurrents(const int n_motor, c
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefCurrents(double* currs)
 {
     std::string errorPrefix = "[getRefCurrents] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -4048,7 +4085,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefCurrents(double* currs)
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefCurrent(int m, double* curr)
 {
     std::string errorPrefix = "[getRefCurrent] ";
-    if (!m_ready && !setup())
+    if (!m_ready)
     {
         yCError(CB) << errorPrefix << "Services are not ready.";
         return false;
@@ -4076,8 +4113,9 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setup()
 
     std::string errorPrefix = "[setup] ";
 
-    if (!m_node->areServicesAvailable())
+    if (!m_node->waitServicesAvailable())
     {
+        yCError(CB) << errorPrefix << "Not all services are available.";
         m_ready = false;
         return m_ready;
     }
@@ -4133,21 +4171,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setup()
 
 void yarp::dev::IsaacSimControlBoardNWCROS2::updateJointMeasurements(const sensor_msgs::msg::JointState::ConstSharedPtr msg)
 {
-    {
-        std::lock_guard<std::mutex> lock(m_jointState.mutex);
+    std::lock_guard<std::mutex> lock(m_jointState.mutex);
 
-        m_jointState.convert_to_vectors(msg);
+    m_jointState.convert_to_vectors(msg);
 
-        if (m_jointState.valid && m_ready && m_jointState.name.size() != m_jointNames.size())
-        {
-            yCWarning(CB) << "[updateJointMeasurements] Number of joints in the received message (" << m_jointState.name.size()
-                << ") is different from the expected one (" << m_jointNames.size() << ").";
-            m_ready = false;
-        }
-    }
-    if (!m_ready)
+    if (m_jointState.valid && m_ready && m_jointState.name.size() != m_jointNames.size())
     {
-        setup();
+        yCWarning(CB) << "[updateJointMeasurements] Number of joints in the received message (" << m_jointState.name.size()
+            << ") is different from the expected one (" << m_jointNames.size() << "). Stopping..";
+        m_ready = false;
     }
 }
 
@@ -4334,7 +4366,8 @@ void yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::publishReferences(JointsSta
     msg.invalidate();
 }
 
-bool yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::areServicesAvailable()
+bool yarp::dev::IsaacSimControlBoardNWCROS2::CBNode::waitServicesAvailable()
 {
-    return m_getParamClient->service_is_ready() && m_setParamClient->service_is_ready();
+    return m_getParamClient->wait_for_service(m_requestsTimeout * 10) &&
+           m_setParamClient->wait_for_service(m_requestsTimeout * 10);
 }

@@ -489,7 +489,7 @@ private:
 
         void publishReferences(JointsState& msg);
 
-        bool areServicesAvailable();
+        bool waitServicesAvailable();
 
     private:
         rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_jointStateSubscription;
