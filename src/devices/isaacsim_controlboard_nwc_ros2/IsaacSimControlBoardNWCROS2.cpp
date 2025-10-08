@@ -2875,32 +2875,107 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getJointType(int j, yarp::dev::Join
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefTorques(double* refs)
 {
-    // TODO
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getRefTorques] ";
+
+    auto results = m_node->getParameters({ {torque_pid_references_tag, Type::PARAMETER_DOUBLE_ARRAY} });
+    if (results.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting torque references.";
+        return false;
+    }
+    if (results[0].double_array_value.size() != m_jointNames.size())
+    {
+        yCError(CB) << errorPrefix << "Size of torque references does not match number of joints.";
+        return false;
+    }
+    std::copy(results[0].double_array_value.begin(), results[0].double_array_value.end(), refs);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefTorque(int j, double* t)
 {
-    // TODO
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getRefTorque] ";
+    std::string suffix_tag = "[" + std::to_string(j) + "]";
+    auto results = m_node->getParameters({ {torque_pid_references_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
+    if (results.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting torque reference for joint" << j << ".";
+        return false;
+    }
+    *t = results[0].double_value;
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefTorques(const double* t)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[setRefTorques] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        std::copy(t, t + numberOfJoints, m_jointReferences.effort.begin());
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefTorque(int j, double t)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[setRefTorque] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        if (j < 0 || j >= static_cast<int>(m_jointReferences.name.size()))
+        {
+            yCError(CB) << errorPrefix << "Joint index out of range. Got " << j << ", expected [0," << m_jointReferences.name.size() - 1 << "]";
+            return false;
+        }
+        m_jointReferences.effort[j] = t;
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefTorques(const int n_joint, const int* joints, const double* t)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[setRefTorques] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        for (int i = 0; i < n_joint; i++)
+        {
+            int j = joints[i];
+            if (j < 0 || j >= static_cast<int>(numberOfJoints))
+            {
+                yCError(CB) << errorPrefix << "Joint index out of range. Got " << j << ", expected [0," << numberOfJoints - 1 << "]";
+                return false;
+            }
+            m_jointReferences.effort[j] = t[i];
+        }
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorTorqueParams(int j, yarp::dev::MotorTorqueParameters* params)
@@ -2977,8 +3052,18 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setImpedance(int j, double stiff, d
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setImpedanceOffset(int j, double offset)
 {
-    // TODO
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[setImpedanceOffset] ";
+
+    if (j < 0 || j >= static_cast<int>(m_compliantOffset.size()))
+    {
+        yCError(CB) << errorPrefix << "Joint index out of range. Got " << j << ", expected [0," << m_compliantOffset.size() - 1 << "]";
+        return false;
+    }
+
+    // We store the offset, but it will be sent only with the next position command
+    m_compliantOffset[j] = offset;
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getTorque(int j, double* t)
@@ -3070,8 +3155,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getImpedance(int j, double* stiff, 
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getImpedanceOffset(int j, double* offset)
 {
-    // TODO
-    return false;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string errorPrefix = "[getImpedanceOffset] ";
+    if (j < 0 || j >= static_cast<int>(m_compliantOffset.size()))
+    {
+        yCError(CB) << errorPrefix << "Joint index out of range. Got " << j << ", expected [0," << m_compliantOffset.size() - 1 << "]";
+        return false;
+    }
+    *offset = m_compliantOffset[j];
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrentImpedanceLimit(int j, double* min_stiff, double* max_stiff, double* min_damp, double* max_damp)
