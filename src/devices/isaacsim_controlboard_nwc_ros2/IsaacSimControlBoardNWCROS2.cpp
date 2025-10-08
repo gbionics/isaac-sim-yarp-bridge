@@ -3409,6 +3409,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPositions(const double* refs)
         m_jointReferences.valid = true;
     }
     m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefPosition(const int joint, double* ref)
@@ -3949,32 +3950,119 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrentRanges(double* min, doubl
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefCurrents(const double* currs)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[setRefCurrents] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        for (size_t j = 0; j < numberOfJoints; j++)
+        {
+            m_jointReferences.effort[j] = currs[j];
+        }
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefCurrent(int m, double curr)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[setRefCurrent] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        if (m < 0 || m >= static_cast<int>(m_jointReferences.name.size()))
+        {
+            yCError(CB) << errorPrefix << "Joint index out of range. Got " << m << ", expected [0," << m_jointReferences.name.size() - 1 << "]";
+            return false;
+        }
+        m_jointReferences.effort[m] = curr;
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefCurrents(const int n_motor, const int* motors, const double* currs)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[setRefCurrents] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Not ready to send references";
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        for (int i = 0; i < n_motor; i++)
+        {
+            int j = motors[i];
+            if (j < 0 || j >= static_cast<int>(numberOfJoints))
+            {
+                yCError(CB) << errorPrefix << "Joint index out of range. Got " << j << ", expected [0," << numberOfJoints - 1 << "]";
+                return false;
+            }
+            m_jointReferences.effort[j] = currs[i];
+        }
+        m_jointReferences.valid = true;
+    }
+    m_node->publishReferences(m_jointReferences);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefCurrents(double* currs)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[getRefCurrents] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto results = m_node->getParameters({ {current_pid_references_tag, Type::PARAMETER_DOUBLE_ARRAY} });
+    if (results.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting effort references.";
+        return false;
+    }
+    if (results[0].double_array_value.size() != m_jointNames.size())
+    {
+        yCError(CB) << errorPrefix << "Size of effort references does not match number of joints.";
+        return false;
+    }
+    std::copy(results[0].double_array_value.begin(), results[0].double_array_value.end(), currs);
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefCurrent(int m, double* curr)
 {
-    // TODO
-    return false;
+    std::string errorPrefix = "[getRefCurrent] ";
+    if (!m_ready && !setup())
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string suffix_tag = "[" + std::to_string(m) + "]";
+    auto results = m_node->getParameters({ {current_pid_references_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
+    if (results.size() != 1)
+    {
+        yCError(CB) << errorPrefix << "Error while getting effort reference for joint" << m << ".";
+        return false;
+    }
+    *curr = results[0].double_value;
+    return true;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setup()
