@@ -12,8 +12,6 @@ YARP_LOG_COMPONENT(CB, "yarp.device.IsaacSimControlBoardNWCROS2")
 constexpr double rad2deg = 180.0 / M_PI;
 constexpr double deg2rad = M_PI / 180.0;
 
-//TODO: may of the things we get from services need to be converted from rad to deg and viceversa
-
 static const std::string joint_names_tag = "joint_names";
 static const std::string joint_types_tag = "joint_types";
 static const std::string max_positions_tag = "max_positions";
@@ -487,7 +485,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidErrorLimit(const yarp::dev::P
         std::string suffix_tag = "[" + std::to_string(j) + "]";
         max_error_param.name = position_max_error_tag + suffix_tag;
         max_error_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE;
-        max_error_param.value.double_value = limit;
+        {
+            std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+            m_jointReferences.convert_to_rad_if_revolute(j, limit, max_error_param.value.double_value);
+        }
         params.push_back(max_error_param);
         auto results = m_node->setParameters(params);
         if (results.size() != params.size())
@@ -512,7 +513,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidErrorLimit(const yarp::dev::P
         std::string suffix_tag = "[" + std::to_string(j) + "]";
         max_error_param.name = velocity_max_error_tag + suffix_tag;
         max_error_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE;
-        max_error_param.value.double_value = limit;
+        {
+            std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+            m_jointReferences.convert_to_rad_if_revolute(j, limit, max_error_param.value.double_value);
+        }
         params.push_back(max_error_param);
         auto results = m_node->setParameters(params);
         if (results.size() != params.size())
@@ -562,7 +566,8 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidErrorLimits(const yarp::dev::
         max_error_param.value.double_array_value.resize(numberOfJoints);
         for (size_t j = 0; j < numberOfJoints; j++)
         {
-            max_error_param.value.double_array_value[j] = limits[j];
+            std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+            m_jointReferences.convert_to_rad_if_revolute(j, limits[j], max_error_param.value.double_array_value[j]);
         }
         params.push_back(max_error_param);
         auto results = m_node->setParameters(params);
@@ -590,7 +595,8 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setPidErrorLimits(const yarp::dev::
         max_error_param.value.double_array_value.resize(numberOfJoints);
         for (size_t j = 0; j < numberOfJoints; j++)
         {
-            max_error_param.value.double_array_value[j] = limits[j];
+            std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+            m_jointReferences.convert_to_rad_if_revolute(j, limits[j], max_error_param.value.double_array_value[j]);
         }
         params.push_back(max_error_param);
         auto results = m_node->setParameters(params);
@@ -670,6 +676,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidError(const yarp::dev::PidCon
     }
 
     *err = result[0].double_value;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION ||
+        pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        m_jointReferences.convert_to_deg_if_revolute(j, *err, *err);
+    }
+
     return true;
 }
 
@@ -721,6 +735,17 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrors(const yarp::dev::PidCo
     }
 
     std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), errs);
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION ||
+        pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        for (size_t j = 0; j < m_jointReferences.name.size(); j++)
+        {
+            m_jointReferences.convert_to_deg_if_revolute(j, errs[j], errs[j]);
+        }
+    }
+
     return true;
 }
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidOutput(const yarp::dev::PidControlTypeEnum& pidtype, int j, double* out)
@@ -1014,6 +1039,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidReference(const yarp::dev::Pi
 
     *ref = result[0].double_value;
 
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION ||
+        pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        m_jointReferences.convert_to_deg_if_revolute(j, *ref, *ref);
+    }
+
     return true;
 }
 
@@ -1066,6 +1098,17 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidReferences(const yarp::dev::P
     }
 
     std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), refs);
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION ||
+        pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        for (size_t j = 0; j < numberOfJoints; j++)
+        {
+            m_jointReferences.convert_to_deg_if_revolute(j, refs[j], refs[j]);
+        }
+    }
     return true;
 }
 
@@ -1118,6 +1161,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrorLimit(const yarp::dev::P
     }
 
     *limit = result[0].double_value;
+
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION ||
+        pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        m_jointReferences.convert_to_deg_if_revolute(j, *limit, *limit);
+    }
+
     return true;
 }
 
@@ -1169,6 +1220,16 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrorLimits(const yarp::dev::
     }
 
     std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), limits);
+    if (pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_POSITION ||
+        pidtype == yarp::dev::PidControlTypeEnum::VOCAB_PIDTYPE_VELOCITY)
+    {
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        size_t numberOfJoints = m_jointReferences.name.size();
+        for (size_t j = 0; j < numberOfJoints; j++)
+        {
+            m_jointReferences.convert_to_deg_if_revolute(j, limits[j], limits[j]);
+        }
+    }
     return true;
 }
 
@@ -1548,7 +1609,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTargetPosition(const int joint, 
         yCError(CB) << errorPrefix << "Error while getting target position for joint" << joint;
         return false;
     }
-    *ref = result[0].double_value;
+
+    std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+    m_jointReferences.convert_to_deg_if_revolute(joint, result[0].double_value, *ref);
+
     return true;
 }
 
@@ -1568,7 +1632,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTargetPositions(double* refs)
         yCError(CB) << errorPrefix << "Error while getting target positions.";
         return false;
     }
-    std::copy(result[0].double_array_value.begin(), result[0].double_array_value.end(), refs);
+
+    std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+    const auto& position_array = result[0].double_array_value;
+    size_t numberOfJoints = m_jointReferences.name.size();
+    for (size_t j = 0; j < numberOfJoints; j++)
+    {
+        m_jointReferences.convert_to_deg_if_revolute(j, position_array[j], refs[j]);
+    }
+
     return true;
 }
 
@@ -1598,7 +1670,8 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTargetPositions(const int n_join
             yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << position_array.size() - 1 << "]";
             return false;
         }
-        refs[i] = position_array[j];
+        std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+        m_jointReferences.convert_to_deg_if_revolute(j, position_array[j], refs[i]);
     }
     return true;
 }
@@ -2558,11 +2631,17 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setLimits(int j, double min, double
     rcl_interfaces::msg::Parameter min_param;
     min_param.name = min_positions_tag + suffix_tag;
     min_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE;
-    min_param.value.double_value = min;
+
     rcl_interfaces::msg::Parameter max_param;
     max_param.name = max_positions_tag + suffix_tag;
     max_param.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE;
-    max_param.value.double_value = max;
+
+    {
+        std::lock_guard<std::mutex> lock_references(m_jointReferences.mutex);
+        m_jointReferences.convert_to_rad_if_revolute(j, min, min_param.value.double_value);
+        m_jointReferences.convert_to_rad_if_revolute(j, max, max_param.value.double_value);
+    }
+
     auto results = m_node->setParameters({ min_param, max_param });
     if (results.size() != 2)
     {
@@ -2601,9 +2680,12 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getLimits(int j, double* min, doubl
         yCError(CB) << errorPrefix << "Error while getting limits for joint" << j << ".";
         return false;
     }
+    {
+        std::lock_guard<std::mutex> lock_references(m_jointReferences.mutex);
+        m_jointReferences.convert_to_deg_if_revolute(j, results[0].double_value, *min);
+        m_jointReferences.convert_to_deg_if_revolute(j, results[1].double_value, *max);
+    }
 
-    *min = results[0].double_value;
-    *max = results[1].double_value;
     return true;
 }
 
@@ -2629,7 +2711,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setVelLimits(int j, double min, dou
                                         "The minimum absolute value of the two will be considered.";
     }
 
-    max_param.value.double_value = std::min(std::abs(min), std::abs(max));
+    {
+        std::lock_guard<std::mutex> lock_references(m_jointReferences.mutex);
+        m_jointReferences.convert_to_rad_if_revolute(j, std::min(std::abs(min), std::abs(max)), max_param.value.double_value);
+    }
 
     auto results = m_node->setParameters({ max_param });
     if (results.size() != 1)
@@ -2665,7 +2750,11 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getVelLimits(int j, double* min, do
         return false;
     }
 
-    *max = results[0].double_value;
+    {
+        std::lock_guard<std::mutex> lock_references(m_jointReferences.mutex);
+        m_jointReferences.convert_to_deg_if_revolute(j, results[0].double_value, *max);
+    }
+
     *min = -(*max);
     return true;
 }
@@ -2722,6 +2811,8 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRemoteVariable(std::string key, 
         yCError(CB) << errorPrefix << "Error while getting remote variable" << key << ". Unsupported parameter type.";
         return false;
     }
+
+    //NOTE: No conversion is applied!
 
     return true;
 }
@@ -3757,7 +3848,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefPosition(const int joint, dou
         yCError(CB) << errorPrefix << "Error while getting position reference for joint" << joint << ".";
         return false;
     }
-    *ref = results[0].double_value;
+
+    std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+    m_jointReferences.convert_to_deg_if_revolute(joint, results[0].double_value, *ref);
+
     return true;
 }
 
@@ -3781,7 +3875,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefPositions(double* refs)
         yCError(CB) << errorPrefix << "Size of position references does not match number of joints.";
         return false;
     }
-    std::copy(results[0].double_array_value.begin(), results[0].double_array_value.end(), refs);
+
+    {
+        std::lock_guard<std::mutex> lock(m_jointReferences.mutex);
+        for (size_t j = 0; j < m_jointNames.size(); j++)
+        {
+            m_jointReferences.convert_to_deg_if_revolute(j, results[0].double_array_value[j], refs[j]);
+        }
+    }
+
     return true;
 }
 
@@ -3807,13 +3909,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefPositions(const int n_joint, 
     }
     for (int i = 0; i < n_joint; i++)
     {
+        std::lock_guard<std::mutex> lock(m_jointReferences.mutex);
         int j = joints[i];
         if (j < 0 || j >= static_cast<int>(results[0].double_array_value.size()))
         {
             yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << results[0].double_array_value.size() - 1 << "]";
             return false;
         }
-        refs[i] = results[0].double_array_value[j];
+        m_jointReferences.convert_to_deg_if_revolute(j, results[0].double_array_value[j], refs[i]);
     }
     return true;
 }
@@ -3876,7 +3979,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefVelocity(const int joint, dou
         yCError(CB) << errorPrefix << "Error while getting velocity reference for joint" << joint << ".";
         return false;
     }
-    *vel = results[0].double_value;
+
+    std::lock_guard<std::mutex> lock_reference(m_jointReferences.mutex);
+    m_jointReferences.convert_to_deg_if_revolute(joint, results[0].double_value, *vel);
+
     return true;
 }
 
@@ -3900,7 +4006,13 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefVelocities(double* vels)
         yCError(CB) << errorPrefix << "Size of velocity references does not match number of joints.";
         return false;
     }
-    std::copy(results[0].double_array_value.begin(), results[0].double_array_value.end(), vels);
+
+    std::lock_guard<std::mutex> lock_references(m_jointReferences.mutex);
+    for (size_t j = 0; j < m_jointNames.size(); j++)
+    {
+        m_jointReferences.convert_to_deg_if_revolute(j, results[0].double_array_value[j], vels[j]);
+    }
+
     return true;
 }
 
@@ -3932,8 +4044,10 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefVelocities(const int n_joint,
             yCError(CB) << errorPrefix << "Index" << j << "out of range. Valid range is [0," << results[0].double_array_value.size() - 1 << "]";
             return false;
         }
-        vels[i] = results[0].double_array_value[j];
+        std::lock_guard<std::mutex> lock(m_jointReferences.mutex);
+        m_jointReferences.convert_to_deg_if_revolute(j, results[0].double_array_value[j], vels[i]);
     }
+
     return true;
 }
 
