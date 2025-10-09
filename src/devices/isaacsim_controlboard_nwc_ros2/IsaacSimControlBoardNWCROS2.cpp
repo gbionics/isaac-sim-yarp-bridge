@@ -898,8 +898,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPid(const yarp::dev::PidControlT
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPids(const yarp::dev::PidControlTypeEnum& pidtype, yarp::dev::Pid* pids)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getPids] ";
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     CBNode::Parameters parameters;
     std::string pid_type_str;
@@ -960,8 +966,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPids(const yarp::dev::PidControl
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidReference(const yarp::dev::PidControlTypeEnum& pidtype, int j, double* ref)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getPidReference] ";
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     std::string parameter_name;
     std::string pid_type_str;
@@ -1007,8 +1019,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidReference(const yarp::dev::Pi
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidReferences(const yarp::dev::PidControlTypeEnum& pidtype, double* refs)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getPidReferences] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string parameter_name;
     std::string pid_type_str;
 
@@ -1052,8 +1071,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidReferences(const yarp::dev::P
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrorLimit(const yarp::dev::PidControlTypeEnum& pidtype, int j, double* limit)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getPidErrorLimit] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     std::string parameter_name;
     std::string pid_type_str;
@@ -1097,8 +1123,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrorLimit(const yarp::dev::P
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrorLimits(const yarp::dev::PidControlTypeEnum& pidtype, double* limits)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getPidErrorLimits] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string parameter_name;
     std::string pid_type_str;
 
@@ -1141,8 +1174,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPidErrorLimits(const yarp::dev::
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::resetPid(const yarp::dev::PidControlTypeEnum& pidtype, int j)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[resetPid] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     std::string pid_type_str;
     std::vector<rcl_interfaces::msg::Parameter> params;
@@ -1201,8 +1241,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::resetPid(const yarp::dev::PidContro
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::disablePid(const yarp::dev::PidControlTypeEnum& pidtype, int j)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[disablePid] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     std::string pid_type_str;
     std::vector<rcl_interfaces::msg::Parameter> params;
@@ -1263,8 +1310,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::disablePid(const yarp::dev::PidCont
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::enablePid(const yarp::dev::PidControlTypeEnum& pidtype, int j)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[enablePid] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     std::string pid_type_str;
     std::vector<rcl_interfaces::msg::Parameter> params;
@@ -1320,8 +1374,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::enablePid(const yarp::dev::PidContr
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::isPidEnabled(const yarp::dev::PidControlTypeEnum& pidtype, int j, bool* enabled)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[isPidEnabled] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     std::string parameter_name;
     std::string pid_type_str;
@@ -1471,8 +1532,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::positionMove(const int n_joints, co
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getTargetPosition(const int joint, double* ref)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getTargetPosition] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(joint) + "]";
     std::string parameter_name = position_pid_references_tag + suffix_tag;
     auto result = m_node->getParameters({ {parameter_name, Type::PARAMETER_DOUBLE} });
@@ -1487,8 +1554,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTargetPosition(const int joint, 
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getTargetPositions(double* refs)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getTargetPositions] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
     auto result = m_node->getParameters({ {position_pid_references_tag, Type::PARAMETER_DOUBLE_ARRAY} });
     if (result.size() != 1)
     {
@@ -1501,8 +1574,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTargetPositions(double* refs)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getTargetPositions(const int n_joint, const int* joints, double* refs)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getTargetPositions] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     auto result = m_node->getParameters({ {position_pid_references_tag, Type::PARAMETER_DOUBLE_ARRAY} });
     if (result.size() != 1)
     {
@@ -1630,8 +1710,14 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::relativeMove(const int n_joints, co
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::checkMotionDone(int j, bool* flag)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[checkMotionDone] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     std::string suffix_tag = "[" + std::to_string(j) + "]";
 
@@ -1650,8 +1736,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::checkMotionDone(int j, bool* flag)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::checkMotionDone(bool* flag)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[checkMotionDone] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     auto results = m_node->getParameters({ {is_motion_done_tag, Type::PARAMETER_BOOL_ARRAY} });
 
     if (results.size() != 1)
@@ -1676,8 +1769,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::checkMotionDone(bool* flag)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::checkMotionDone(const int n_joints, const int* joints, bool* flags)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[checkMotionDone] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     auto results = m_node->getParameters({ {is_motion_done_tag, Type::PARAMETER_BOOL_ARRAY} });
 
@@ -1831,8 +1931,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefAccelerations(const int n_joi
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::stop(int j)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[stop] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
 
     rcl_interfaces::msg::Parameter stop_param;
@@ -1929,8 +2036,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::stop(const int n_joints, const int*
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getLastJointFault(int j, int& fault, std::string& message)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getLastJointFault] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     auto results = m_node->getParameters({ {hf_messages_tag + suffix_tag, Type::PARAMETER_STRING} });
     if (results.size() != 1)
@@ -2330,8 +2444,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getAmpStatus(int j, int* v)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setMaxCurrent(int j, double v)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[setMaxCurrent] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     rcl_interfaces::msg::Parameter max_current_param;
     max_current_param.name = motor_max_currents_tag + suffix_tag;
@@ -2353,8 +2474,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setMaxCurrent(int j, double v)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMaxCurrent(int j, double* v)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getMaxCurrent] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     auto results = m_node->getParameters({ {motor_max_currents_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
@@ -2417,8 +2545,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getPowerSupplyVoltage(int m, double
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setLimits(int j, double min, double max)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[setLimits] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     rcl_interfaces::msg::Parameter min_param;
     min_param.name = min_positions_tag + suffix_tag;
@@ -2449,8 +2584,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setLimits(int j, double min, double
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getLimits(int j, double* min, double* max)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getLimits] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     auto results = m_node->getParameters({ {min_positions_tag + suffix_tag, Type::PARAMETER_DOUBLE},
                                            {max_positions_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
@@ -2467,8 +2609,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getLimits(int j, double* min, doubl
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setVelLimits(int j, double min, double max)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[setVelLimits] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     rcl_interfaces::msg::Parameter max_param;
     max_param.name = max_velocities_tag + suffix_tag;
@@ -2499,8 +2648,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setVelLimits(int j, double min, dou
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getVelLimits(int j, double* min, double* max)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getVelLimits] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     auto results = m_node->getParameters({ {max_velocities_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
@@ -2516,8 +2672,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getVelLimits(int j, double* min, do
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRemoteVariable(std::string key, yarp::os::Bottle& val)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getRemoteVariable] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     auto results = m_node->getParameters({ {key, Type::PARAMETER_NOT_SET} });
     if (results.size() != 1)
     {
@@ -2565,6 +2728,7 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRemoteVariable(std::string key, 
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setRemoteVariable(std::string key, const yarp::os::Bottle& val)
 {
+    // Here it would be necessary to understand the type of the content to properly send the message over ROS
     yCError(CB) << "[setRemoteVariable] It is not possible to set remote variables in Isaac sim.";
     return false;
 }
@@ -2828,8 +2992,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setTemperatureLimit(int m, const do
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getGearboxRatio(int m, double* val)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getGearboxRatio] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(m) + "]";
     auto results = m_node->getParameters({ {gearbox_ratios_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
@@ -2844,8 +3015,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getGearboxRatio(int m, double* val)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setGearboxRatio(int m, const double val)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[setGearboxRatio] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(m) + "]";
     rcl_interfaces::msg::Parameter gearbox_ratio_param;
     gearbox_ratio_param.name = gearbox_ratios_tag + suffix_tag;
@@ -2920,8 +3098,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getJointType(int j, yarp::dev::Join
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefTorques(double* refs)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getRefTorques] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     auto results = m_node->getParameters({ {torque_pid_references_tag, Type::PARAMETER_DOUBLE_ARRAY} });
     if (results.size() != 1)
@@ -2940,8 +3125,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefTorques(double* refs)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getRefTorque(int j, double* t)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getRefTorque] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     auto results = m_node->getParameters({ {torque_pid_references_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
@@ -3025,8 +3217,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setRefTorques(const int n_joint, co
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorTorqueParams(int j, yarp::dev::MotorTorqueParameters* params)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getMotorTorqueParams] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     auto results = m_node->getParameters({ {motor_torque_constants_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
@@ -3042,8 +3241,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorTorqueParams(int j, yarp::d
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setMotorTorqueParams(int j, const yarp::dev::MotorTorqueParameters params)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[setMotorTorqueParams] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     rcl_interfaces::msg::Parameter motor_torque_constant_param;
     motor_torque_constant_param.name = motor_torque_constants_tag + suffix_tag;
@@ -3065,8 +3271,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setMotorTorqueParams(int j, const y
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setImpedance(int j, double stiff, double damp)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[setImpedance] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     rcl_interfaces::msg::Parameter stiff_param;
     stiff_param.name = compliant_stiffness_tag + suffix_tag;
@@ -3097,8 +3310,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setImpedance(int j, double stiff, d
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setImpedanceOffset(int j, double offset)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[setImpedanceOffset] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     if (j < 0 || j >= static_cast<int>(m_compliantOffset.size()))
     {
@@ -3146,8 +3366,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTorques(double* t)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getTorqueRange(int j, double* min, double* max)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getTorqueRange] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     auto results = m_node->getParameters({ {max_efforts_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
@@ -3163,8 +3390,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTorqueRange(int j, double* min, 
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getTorqueRanges(double* min, double* max)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getTorqueRanges] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     auto results = m_node->getParameters({ {max_efforts_tag, Type::PARAMETER_DOUBLE_ARRAY} });
     if (results.size() != 1)
     {
@@ -3182,8 +3416,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getTorqueRanges(double* min, double
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getImpedance(int j, double* stiff, double* damp)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getImpedance] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     auto results = m_node->getParameters({ {compliant_stiffness_tag + suffix_tag, Type::PARAMETER_DOUBLE},
                                                                   {compliant_damping_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
@@ -3200,8 +3441,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getImpedance(int j, double* stiff, 
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getImpedanceOffset(int j, double* offset)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getImpedanceOffset] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (j < 0 || j >= static_cast<int>(m_compliantOffset.size()))
     {
         yCError(CB) << errorPrefix << "Joint index out of range. Got " << j << ", expected [0," << m_compliantOffset.size() - 1 << "]";
@@ -3219,8 +3467,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrentImpedanceLimit(int j, dou
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getControlMode(int j, int* mode)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getControlMode] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     auto results = m_node->getParameters({ {control_modes_tag + suffix_tag, Type::PARAMETER_INTEGER} });
     if (results.size() != 1)
@@ -3236,8 +3491,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getControlMode(int j, int* mode)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getControlModes(int* modes)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getControlModes] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     auto results = m_node->getParameters({ {control_modes_tag, Type::PARAMETER_INTEGER_ARRAY} });
     if (results.size() != 1)
     {
@@ -3253,8 +3515,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getControlModes(int* modes)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getControlModes(const int n_joint, const int* joints, int* modes)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getControlModes] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     auto results = m_node->getParameters({ {control_modes_tag, Type::PARAMETER_INTEGER_ARRAY} });
     if (results.size() != 1)
     {
@@ -3278,8 +3547,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getControlModes(const int n_joint, 
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setControlMode(const int j, const int mode)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[setControlMode] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(j) + "]";
     rcl_interfaces::msg::Parameter control_mode_param;
     control_mode_param.name = control_modes_tag + suffix_tag;
@@ -3301,8 +3577,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::setControlMode(const int j, const i
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::setControlModes(const int n_joints, const int* joints, int* modes)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[setControlModes] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::vector<rcl_interfaces::msg::Parameter> control_mode_params;
     for (int i = 0; i < n_joints; i++)
     {
@@ -3688,8 +3971,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getInteractionMode(int j, yarp::dev
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getInteractionModes(int n_joints, int* joints, yarp::dev::InteractionModeEnum* modes)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getInteractionModes] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     auto results = m_node->getParameters({ {compliant_modes_tag, Type::PARAMETER_BOOL_ARRAY} });
     if (results.size() != 1)
     {
@@ -3715,8 +4005,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getInteractionModes(int n_joints, i
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getInteractionModes(yarp::dev::InteractionModeEnum* modes)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getInteractionModes] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     auto results = m_node->getParameters({ {compliant_modes_tag, Type::PARAMETER_BOOL_ARRAY} });
     if (results.size() != 1)
     {
@@ -3945,8 +4242,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrents(double* currs)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrentRange(int m, double* min, double* max)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getCurrentRange] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     std::string suffix_tag = "[" + std::to_string(m) + "]";
     auto results = m_node->getParameters({ {motor_max_currents_tag + suffix_tag, Type::PARAMETER_DOUBLE} });
     if (results.size() != 1)
@@ -3962,8 +4266,15 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrentRange(int m, double* min,
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getCurrentRanges(double* min, double* max)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getCurrentRanges] ";
+
+    if (!m_ready)
+    {
+        yCError(CB) << errorPrefix << "Services are not ready.";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     auto results = m_node->getParameters({ {motor_max_currents_tag, Type::PARAMETER_DOUBLE_ARRAY} });
     if (results.size() != 1)
     {
