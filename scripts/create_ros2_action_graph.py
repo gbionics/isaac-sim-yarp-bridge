@@ -372,6 +372,7 @@ class ControlBoardState:
 
     # Position PID state
     position_pid_references: list[float]
+    position_pid_reference_velocities: list[float]
     position_pid_errors: list[float]
     position_pid_outputs: list[float]
     is_motion_done: list[bool]
@@ -427,6 +428,7 @@ class ControlBoardState:
         self.velocity_max_output = settings.velocity_max_output
         self.velocity_max_error = settings.velocity_max_error
         self.position_pid_references = [float("nan")] * n_joints
+        self.position_pid_reference_velocities = [float("nan")] * n_joints
         self.position_pid_errors = [float("nan")] * n_joints
         self.position_pid_outputs = [float("nan")] * n_joints
         self.is_motion_done = [False] * n_joints
@@ -1425,6 +1427,9 @@ def update_state(db: og.Database):
             cb_state.position_pid_outputs[i] = position_pid.get_output()
             if position_pid.smoother:
                 cb_state.is_motion_done[i] = position_pid.smoother.trajectory_completed
+                cb_state.position_pid_reference_velocities[i] = (
+                    position_pid.smoother.speed
+                )
 
         if velocity_pid:
             reference = velocity_pid.get_reference()
