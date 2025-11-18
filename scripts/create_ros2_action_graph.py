@@ -981,10 +981,12 @@ s = Settings(
                 "l_ankle_pitch",
                 "l_ankle_roll",
             ],
-            joint_damping=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-            position_p_gains=[70.0, 70.0, 40.0, 100.0, 100.0, 100.0],
-            position_i_gains=[0.17, 0.17, 0.35, 0.35, 0.35, 0.35],
-            position_d_gains=[0.15, 0.15, 0.35, 0.15, 0.15, 0.15],
+            joint_damping=[x * 5.0 for x in [10.0, 2.0, 2.0, 10.0, 10.0, 2.0]],
+            position_p_gains=[
+                x * 3.0 for x in [350.0, 70.0, 40.0, 200.0, 1000.0, 100.0]
+            ],
+            position_i_gains=[x * 0.0 for x in [0.17, 0.17, 0.35, 0.35, 0.35, 0.35]],
+            position_d_gains=[x * 20.0 for x in [0.15, 0.15, 0.35, 0.15, 0.15, 0.15]],
             position_max_integral=[9999.0] * 6,
             position_max_output=[9999.0] * 6,
             position_max_error=[9999.0] * 6,
@@ -1013,10 +1015,12 @@ s = Settings(
                 "r_ankle_pitch",
                 "r_ankle_roll",
             ],
-            joint_damping=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-            position_p_gains=[70.0, 70.0, 40.0, 100.0, 100.0, 100.0],
-            position_i_gains=[0.17, 0.17, 0.35, 0.35, 0.35, 0.35],
-            position_d_gains=[0.15, 0.15, 0.35, 0.15, 0.15, 0.15],
+            joint_damping=[x * 5.0 for x in [10.0, 2.0, 2.0, 10.0, 10.0, 2.0]],
+            position_p_gains=[
+                x * 3.0 for x in [350.0, 70.0, 40.0, 200.0, 1000.0, 100.0]
+            ],
+            position_i_gains=[x * 0.0 for x in [0.17, 0.17, 0.35, 0.35, 0.35, 0.35]],
+            position_d_gains=[x * 20.0 for x in [0.15, 0.15, 0.35, 0.15, 0.15, 0.15]],
             position_max_integral=[9999.0] * 6,
             position_max_output=[9999.0] * 6,
             position_max_error=[9999.0] * 6,
