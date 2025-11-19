@@ -2,7 +2,7 @@
 <!DOCTYPE robot PUBLIC "-//YARP//DTD yarprobotinterface 3.0//EN" "http://www.yarp.it/DTD/yarprobotinterfaceV3.0.dtd">
 
 <robot name="ergocubIsaacsim" build="1" portprefix="/ergocubSim" xmlns:xi="http://www.w3.org/2001/XInclude">
-    
+
     <devices>
         <!-- REALSENSE -->
         <xi:include href="sensors/isaacsim_ergocub_realsense.xml" />
