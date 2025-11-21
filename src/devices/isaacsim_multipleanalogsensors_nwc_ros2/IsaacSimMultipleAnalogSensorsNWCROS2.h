@@ -43,6 +43,8 @@ class yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2 :
     public yarp::dev::ILinearVelocitySensors
 {
 
+    bool waitForData();
+
 public:
     IsaacSimMultipleAnalogSensorsNWCROS2() = default;
     ~IsaacSimMultipleAnalogSensorsNWCROS2() override;
