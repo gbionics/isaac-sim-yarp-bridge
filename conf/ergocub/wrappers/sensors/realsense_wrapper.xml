@@ -6,7 +6,7 @@
     <param name="name"> /depthCamera </param>
     <action phase="startup" level="10" type="attach">
         <paramlist name="networks">
-        <elem name="subdevicergbd"> isaacsim_ergocub_realsense </elem>
+        <elem name="subdevicergbd"> realsense_isaacsim </elem>
         </paramlist>
     </action>
     <action phase="shutdown" level="15" type="detach" />
