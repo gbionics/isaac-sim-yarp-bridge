@@ -13,7 +13,7 @@ bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::waitForData()
 {
     size_t attempt = 0;
     const size_t max_attempts = 100;
-    const size_t wait_time_s = 0.1;
+    const double wait_time_s = 0.1;
 
     while (attempt < max_attempts)
     {
