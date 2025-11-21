@@ -7,6 +7,17 @@
         <!-- REALSENSE -->
         <xi:include href="bridge/sensors/realsense_isaacsim.xml" />
         <xi:include href="wrappers/sensors/realsense_wrapper.xml" />
+
+        <!-- FT -->
+        <xi:include href="bridge/FT/left_arm-FT_isaacsim.xml" />
+        <xi:include href="bridge/FT/left_foot-FT_isaacsim.xml" />
+        <xi:include href="bridge/FT/left_leg-FT_isaacsim.xml" />
+        <xi:include href="bridge/FT/right_arm-FT_isaacsim.xml" />
+        <xi:include href="bridge/FT/right_foot-FT_isaacsim.xml" />
+        <xi:include href="bridge/FT/right_leg-FT_isaacsim.xml" />
+
+        <xi:include href="wrappers/FT/left_arm-FT_wrapper.xml" />
+
     </devices>
 
 </robot>
