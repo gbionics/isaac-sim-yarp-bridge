@@ -17,7 +17,15 @@
         <xi:include href="bridge/FT/right_leg-FT_isaacsim.xml" />
 
         <xi:include href="wrappers/FT/left_arm-FT_wrapper.xml" />
-
+        <xi:include href="wrappers/FT/left_foot-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/left_leg_hip-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/left_leg-FT_remapper.xml" />
+        <xi:include href="wrappers/FT/left_leg-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/right_arm-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/right_foot-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/right_leg_hip-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/right_leg-FT_remapper.xml" />
+        <xi:include href="wrappers/FT/right_leg-FT_wrapper.xml" />
     </devices>
 
 </robot>
