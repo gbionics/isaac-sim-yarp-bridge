@@ -95,4 +95,6 @@ jobs:
         yarp namespace /test
         cmd /c "START /B  yarpserver --write"
         ctest --output-on-failure -C ${{ matrix.build_type }} .
+        set CTEST_ERROR=%ERRORLEVEL%
         taskkill /IM yarpserver.exe /F
+        exit %CTEST_ERROR%
