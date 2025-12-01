@@ -445,11 +445,17 @@ public:
 
 private:
 
+    using Parameters = std::vector<std::pair<std::string, uint8_t>>;
+
     bool setup();
 
     void updateJointMeasurements(const sensor_msgs::msg::JointState::ConstSharedPtr msg);
 
     void updateMotorMeasurements(const sensor_msgs::msg::JointState::ConstSharedPtr msg);
+
+    std::vector<rcl_interfaces::msg::ParameterValue> getParameters(const Parameters& parameters);
+
+    std::vector<rcl_interfaces::msg::SetParametersResult> setParameters(const std::vector<rcl_interfaces::msg::Parameter>& params);
 
     struct JointsState
     {
@@ -472,8 +478,6 @@ private:
     class CBNode : public rclcpp::Node
     {
     public:
-
-        using Parameters = std::vector<std::pair<std::string, uint8_t>>;
         explicit CBNode(const std::string& node_name,
                         const std::string& joint_state_topic_name,
                         const std::string& motor_state_topic_name,
@@ -483,22 +487,19 @@ private:
                         double requests_timeout_sec,
                         IsaacSimControlBoardNWCROS2* parent);
 
-        std::vector<rcl_interfaces::msg::ParameterValue> getParameters(const Parameters& parameters);
-
-        std::vector<rcl_interfaces::msg::SetParametersResult> setParameters(const std::vector<rcl_interfaces::msg::Parameter>& params);
-
         void publishReferences(JointsState& msg);
 
         bool waitServicesAvailable();
+
+        rclcpp::Client<rcl_interfaces::srv::GetParameters>::SharedPtr getParamClient;
+        rclcpp::Client<rcl_interfaces::srv::SetParameters>::SharedPtr setParamClient;
+        std::chrono::duration<double> requestsTimeout;
 
     private:
         rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_jointStateSubscription;
         rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_motorStateSubscription;
         rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr m_referencesPublisher;
-        rclcpp::Client<rcl_interfaces::srv::GetParameters>::SharedPtr m_getParamClient;
-        rclcpp::Client<rcl_interfaces::srv::SetParameters>::SharedPtr m_setParamClient;
         sensor_msgs::msg::JointState m_referencesMessageBuffer;
-        std::chrono::duration<double> m_requestsTimeout;
     };
 
     std::shared_ptr<CBNode> m_node;
