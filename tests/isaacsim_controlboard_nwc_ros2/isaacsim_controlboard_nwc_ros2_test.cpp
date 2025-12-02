@@ -73,7 +73,7 @@ public:
     rclcpp::Service<rcl_interfaces::srv::SetParameters>::SharedPtr set_param_srv;
 };
 
-TEST_CASE("IsaacSimControlBoardNWCROS2 device open/close", "[ros2][isaacsim_controlboard]") {
+TEST_CASE("IsaacSimControlBoardNWCROS2 device basic functionality", "[ros2][isaacsim_controlboard]") {
     rclcpp::init(0, nullptr);
     yarp::os::Network::init();
 
@@ -107,6 +107,17 @@ TEST_CASE("IsaacSimControlBoardNWCROS2 device open/close", "[ros2][isaacsim_cont
     config.put("service_request_timeout", 1.0);
 
     REQUIRE(device.open(config));
+    // Test that the joint names are correctly retrieved
+    int numberOfJoints = 0;
+    REQUIRE(device.getAxes(&numberOfJoints));
+    REQUIRE(numberOfJoints == 3);
+    for (int i = 0; i < numberOfJoints; ++i) {
+        std::string joint_name;
+        REQUIRE(device.getAxisName(i, joint_name));
+        std::string expected_name = "joint_" + std::to_string(i + 1);
+        REQUIRE(std::string(joint_name) == expected_name);
+    }
+
     REQUIRE(device.close());
 
     executor.cancel();
