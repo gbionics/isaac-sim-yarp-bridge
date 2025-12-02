@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <catch2/catch_approx.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <rcl_interfaces/srv/get_parameters.hpp>
@@ -187,9 +187,9 @@ TEST_CASE("IsaacSimControlBoardNWCROS2", "[ros2][isaacsim_controlboard]")
         // Test getEncoders after receiving data (should succeed)
         // Device returns in degrees for revolute joints
         REQUIRE(device.getEncoders(encoders.data()));
-        REQUIRE(encoders[0] == 0.1 * rad2deg);
-        REQUIRE(encoders[1] == 0.2 * rad2deg);
-        REQUIRE(encoders[2] == 0.3 * rad2deg);
+        REQUIRE_THAT(encoders[0], Catch::Matchers::WithinAbs(0.1 * rad2deg, 1e-5));
+        REQUIRE_THAT(encoders[1], Catch::Matchers::WithinAbs(0.2 * rad2deg, 1e-5));
+        REQUIRE_THAT(encoders[2], Catch::Matchers::WithinAbs(0.3 * rad2deg, 1e-5));
 
         // Publish updated joint state data (ROS2 publishes in radians)
         joint_state_msg.header.stamp = dummy_node->now();
@@ -201,9 +201,9 @@ TEST_CASE("IsaacSimControlBoardNWCROS2", "[ros2][isaacsim_controlboard]")
 
         // Test getEncoders with updated data (device returns in degrees)
         REQUIRE(device.getEncoders(encoders.data()));
-        REQUIRE(encoders[0] == 1.5 * rad2deg);
-        REQUIRE(encoders[1] == -0.5 * rad2deg);
-        REQUIRE(encoders[2] == 2.0 * rad2deg);
+        REQUIRE_THAT(encoders[0], Catch::Matchers::WithinAbs(1.5 * rad2deg, 1e-5));
+        REQUIRE_THAT(encoders[1], Catch::Matchers::WithinAbs(-0.5 * rad2deg, 1e-5));
+        REQUIRE_THAT(encoders[2], Catch::Matchers::WithinAbs(2.0 * rad2deg, 1e-5));
     }
 
     SECTION("setRefSpeeds with positionMove - all joints")
@@ -229,13 +229,13 @@ TEST_CASE("IsaacSimControlBoardNWCROS2", "[ros2][isaacsim_controlboard]")
         REQUIRE(joint_refs.velocity.size() == 3);
         REQUIRE(joint_refs.position.size() == 3);
         // Device should publish velocities in radians/second
-        REQUIRE(std::abs(joint_refs.velocity[0] - ref_speeds[0] * deg2rad) < 1e-6);
-        REQUIRE(std::abs(joint_refs.velocity[1] - ref_speeds[1] * deg2rad) < 1e-6);
-        REQUIRE(std::abs(joint_refs.velocity[2] - ref_speeds[2] * deg2rad) < 1e-6);
+        REQUIRE_THAT(joint_refs.velocity[0], Catch::Matchers::WithinAbs(ref_speeds[0] * deg2rad, 1e-5));
+        REQUIRE_THAT(joint_refs.velocity[1], Catch::Matchers::WithinAbs(ref_speeds[1] * deg2rad, 1e-5));
+        REQUIRE_THAT(joint_refs.velocity[2], Catch::Matchers::WithinAbs(ref_speeds[2] * deg2rad, 1e-5));
         // Device should publish positions in radians
-        REQUIRE(std::abs(joint_refs.position[0] - ref_positions[0] * deg2rad) < 1e-6);
-        REQUIRE(std::abs(joint_refs.position[1] - ref_positions[1] * deg2rad) < 1e-6);
-        REQUIRE(std::abs(joint_refs.position[2] - ref_positions[2] * deg2rad) < 1e-6);
+        REQUIRE_THAT(joint_refs.position[0], Catch::Matchers::WithinAbs(ref_positions[0] * deg2rad, 1e-5));
+        REQUIRE_THAT(joint_refs.position[1], Catch::Matchers::WithinAbs(ref_positions[1] * deg2rad, 1e-5));
+        REQUIRE_THAT(joint_refs.position[2], Catch::Matchers::WithinAbs(ref_positions[2] * deg2rad, 1e-5));
     }
 
     SECTION("setRefSpeed with positionMove - single joint")
@@ -260,8 +260,8 @@ TEST_CASE("IsaacSimControlBoardNWCROS2", "[ros2][isaacsim_controlboard]")
         REQUIRE(joint_refs.velocity.size() >= 2);
         REQUIRE(joint_refs.position.size() >= 2);
         // Device should publish in radians/second and radians
-        REQUIRE(std::abs(joint_refs.velocity[1] - ref_speed * deg2rad) < 1e-6);
-        REQUIRE(std::abs(joint_refs.position[1] - ref_position * deg2rad) < 1e-6);
+        REQUIRE_THAT(joint_refs.velocity[1], Catch::Matchers::WithinAbs(ref_speed * deg2rad, 1e-5));
+        REQUIRE_THAT(joint_refs.position[1], Catch::Matchers::WithinAbs(ref_position * deg2rad, 1e-5));
     }
 
     SECTION("positionMove - subset of joints")
@@ -297,8 +297,8 @@ TEST_CASE("IsaacSimControlBoardNWCROS2", "[ros2][isaacsim_controlboard]")
                 if (joint_refs.name[j] == "joint_" + std::to_string(joints[i] + 1))
                 {
                     // Device should publish velocities in radians/second and positions in radians
-                    REQUIRE(std::abs(joint_refs.velocity[j] - ref_speeds[i] * deg2rad) < 1e-6);
-                    REQUIRE(std::abs(joint_refs.position[j] - ref_positions[i] * deg2rad) < 1e-6);
+                    REQUIRE_THAT(joint_refs.velocity[j], Catch::Matchers::WithinAbs(ref_speeds[i] * deg2rad, 1e-5));
+                    REQUIRE_THAT(joint_refs.position[j], Catch::Matchers::WithinAbs(ref_positions[i] * deg2rad, 1e-5));
                     found = true;
                     break;
                 }
