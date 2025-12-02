@@ -68,7 +68,6 @@ public:
                         response->values[i].type = rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET;
                     }
                 }
-                yInfo() << "GetParameters service ended successfully.";
             });
 
         set_param_srv = this->create_service<rcl_interfaces::srv::SetParameters>(
@@ -111,7 +110,7 @@ public:
     }
 };
 
-TEST_CASE("IsaacSimControlBoardNWCROS2 device basic functionality", "[ros2][isaacsim_controlboard]")
+TEST_CASE("IsaacSimControlBoardNWCROS2", "[ros2][isaacsim_controlboard]")
 {
     rclcpp::init(0, nullptr);
     yarp::os::Network::init();
@@ -146,146 +145,6 @@ TEST_CASE("IsaacSimControlBoardNWCROS2 device basic functionality", "[ros2][isaa
     config.put("service_request_timeout", 1.0);
 
     REQUIRE(device.open(config));
-    // Test that the joint names are correctly retrieved
-    int numberOfJoints = 0;
-    REQUIRE(device.getAxes(&numberOfJoints));
-    REQUIRE(numberOfJoints == 3);
-    for (int i = 0; i < numberOfJoints; ++i)
-    {
-        std::string joint_name;
-        REQUIRE(device.getAxisName(i, joint_name));
-        std::string expected_name = "joint_" + std::to_string(i + 1);
-        REQUIRE(std::string(joint_name) == expected_name);
-    }
-
-    REQUIRE(device.close());
-
-    executor.cancel();
-    exec_thread.join();
-    rclcpp::shutdown();
-}
-
-TEST_CASE("IsaacSimControlBoardNWCROS2 getEncoders function", "[ros2][isaacsim_controlboard][getEncoders]")
-{
-    rclcpp::init(0, nullptr);
-    yarp::os::Network::init();
-
-    // Dummy ROS2 node with required topics/services
-    auto dummy_node = std::make_shared<DummyCBNode>(
-        "dummy_cb_node_encoders",
-        "/joint_states_encoders",
-        "/motor_states_encoders",
-        "/joint_references_encoders",
-        "/get_parameters_encoders",
-        "/set_parameters_encoders");
-    rclcpp::executors::MultiThreadedExecutor executor;
-    executor.add_node(dummy_node);
-
-    // Start executor in a thread
-    std::thread exec_thread([&executor]()
-                            { executor.spin(); });
-
-    // Give time for services to be available
-    std::this_thread::sleep_for(500ms);
-
-    yarp::dev::IsaacSimControlBoardNWCROS2 device;
-    yarp::os::Property config;
-    config.put("streaming_node_name", "test_isaacsim_controlboard_streaming_encoders");
-    config.put("service_node_name", "test_isaacsim_controlboard_service_encoders");
-    config.put("joint_state_topic_name", "/joint_states_encoders");
-    config.put("motor_state_topic_name", "/motor_states_encoders");
-    config.put("joint_references_topic_name", "/joint_references_encoders");
-    config.put("get_parameters_service_name", "/get_parameters_encoders");
-    config.put("set_parameters_service_name", "/set_parameters_encoders");
-    config.put("service_request_timeout", 1.0);
-
-    REQUIRE(device.open(config));
-
-    int numberOfJoints = 0;
-    REQUIRE(device.getAxes(&numberOfJoints));
-    REQUIRE(numberOfJoints == 3);
-
-    // Test getEncoders before receiving any data (should fail)
-    std::vector<double> encoders(numberOfJoints);
-    REQUIRE_FALSE(device.getEncoders(encoders.data()));
-
-    // Publish joint state data (ROS2 publishes in radians)
-    sensor_msgs::msg::JointState joint_state_msg;
-    joint_state_msg.header.stamp = dummy_node->now();
-    joint_state_msg.name = {"joint_1", "joint_2", "joint_3"};
-    joint_state_msg.position = {0.1, 0.2, 0.3}; // radians
-    joint_state_msg.velocity = {0.0, 0.0, 0.0};
-    joint_state_msg.effort = {0.0, 0.0, 0.0};
-
-    dummy_node->joint_state_pub->publish(joint_state_msg);
-
-    // Give time for the message to be received
-    std::this_thread::sleep_for(500ms);
-
-    // Test getEncoders after receiving data (should succeed)
-    // Device returns in degrees for revolute joints
-    constexpr double rad2deg = 180.0 / M_PI;
-    REQUIRE(device.getEncoders(encoders.data()));
-    REQUIRE(encoders[0] == 0.1 * rad2deg);
-    REQUIRE(encoders[1] == 0.2 * rad2deg);
-    REQUIRE(encoders[2] == 0.3 * rad2deg);
-
-    // Publish updated joint state data (ROS2 publishes in radians)
-    joint_state_msg.header.stamp = dummy_node->now();
-    joint_state_msg.position = {1.5, -0.5, 2.0}; // radians
-    dummy_node->joint_state_pub->publish(joint_state_msg);
-
-    // Give time for the message to be received
-    std::this_thread::sleep_for(500ms);
-
-    // Test getEncoders with updated data (device returns in degrees)
-    REQUIRE(device.getEncoders(encoders.data()));
-    REQUIRE(encoders[0] == 1.5 * rad2deg);
-    REQUIRE(encoders[1] == -0.5 * rad2deg);
-    REQUIRE(encoders[2] == 2.0 * rad2deg);
-
-    REQUIRE(device.close());
-
-    executor.cancel();
-    exec_thread.join();
-    rclcpp::shutdown();
-}
-
-TEST_CASE("IsaacSimControlBoardNWCROS2 positionMove and setRefSpeeds", "[ros2][isaacsim_controlboard][positionMove][setRefSpeeds]")
-{
-    rclcpp::init(0, nullptr);
-    yarp::os::Network::init();
-
-    // Dummy ROS2 node with required topics/services
-    auto dummy_node = std::make_shared<DummyCBNode>(
-        "dummy_cb_node_position",
-        "/joint_states_position",
-        "/motor_states_position",
-        "/joint_references_position",
-        "/get_parameters_position",
-        "/set_parameters_position");
-    rclcpp::executors::MultiThreadedExecutor executor;
-    executor.add_node(dummy_node);
-
-    // Start executor in a thread
-    std::thread exec_thread([&executor]()
-                            { executor.spin(); });
-
-    // Give time for services to be available
-    std::this_thread::sleep_for(500ms);
-
-    yarp::dev::IsaacSimControlBoardNWCROS2 device;
-    yarp::os::Property config;
-    config.put("streaming_node_name", "test_isaacsim_controlboard_streaming_position");
-    config.put("service_node_name", "test_isaacsim_controlboard_service_position");
-    config.put("joint_state_topic_name", "/joint_states_position");
-    config.put("motor_state_topic_name", "/motor_states_position");
-    config.put("joint_references_topic_name", "/joint_references_position");
-    config.put("get_parameters_service_name", "/get_parameters_position");
-    config.put("set_parameters_service_name", "/set_parameters_position");
-    config.put("service_request_timeout", 1.0);
-
-    REQUIRE(device.open(config));
 
     int numberOfJoints = 0;
     REQUIRE(device.getAxes(&numberOfJoints));
@@ -294,7 +153,60 @@ TEST_CASE("IsaacSimControlBoardNWCROS2 positionMove and setRefSpeeds", "[ros2][i
     constexpr double deg2rad = M_PI / 180.0;
     constexpr double rad2deg = 180.0 / M_PI;
 
-    SECTION("Test setRefSpeeds with positionMove - all joints")
+    SECTION("Basic functionality")
+    {
+        // Test that the joint names are correctly retrieved
+        for (int i = 0; i < numberOfJoints; ++i)
+        {
+            std::string joint_name;
+            REQUIRE(device.getAxisName(i, joint_name));
+            std::string expected_name = "joint_" + std::to_string(i + 1);
+            REQUIRE(std::string(joint_name) == expected_name);
+        }
+    }
+
+    SECTION("getEncoders function")
+    {
+        // Test getEncoders before receiving any data (should fail)
+        std::vector<double> encoders(numberOfJoints);
+        REQUIRE_FALSE(device.getEncoders(encoders.data()));
+
+        // Publish joint state data (ROS2 publishes in radians)
+        sensor_msgs::msg::JointState joint_state_msg;
+        joint_state_msg.header.stamp = dummy_node->now();
+        joint_state_msg.name = {"joint_1", "joint_2", "joint_3"};
+        joint_state_msg.position = {0.1, 0.2, 0.3}; // radians
+        joint_state_msg.velocity = {0.0, 0.0, 0.0};
+        joint_state_msg.effort = {0.0, 0.0, 0.0};
+
+        dummy_node->joint_state_pub->publish(joint_state_msg);
+
+        // Give time for the message to be received
+        std::this_thread::sleep_for(500ms);
+
+        // Test getEncoders after receiving data (should succeed)
+        // Device returns in degrees for revolute joints
+        REQUIRE(device.getEncoders(encoders.data()));
+        REQUIRE(encoders[0] == 0.1 * rad2deg);
+        REQUIRE(encoders[1] == 0.2 * rad2deg);
+        REQUIRE(encoders[2] == 0.3 * rad2deg);
+
+        // Publish updated joint state data (ROS2 publishes in radians)
+        joint_state_msg.header.stamp = dummy_node->now();
+        joint_state_msg.position = {1.5, -0.5, 2.0}; // radians
+        dummy_node->joint_state_pub->publish(joint_state_msg);
+
+        // Give time for the message to be received
+        std::this_thread::sleep_for(500ms);
+
+        // Test getEncoders with updated data (device returns in degrees)
+        REQUIRE(device.getEncoders(encoders.data()));
+        REQUIRE(encoders[0] == 1.5 * rad2deg);
+        REQUIRE(encoders[1] == -0.5 * rad2deg);
+        REQUIRE(encoders[2] == 2.0 * rad2deg);
+    }
+
+    SECTION("setRefSpeeds with positionMove - all joints")
     {
         dummy_node->resetJointReferencesFlag();
 
@@ -326,7 +238,7 @@ TEST_CASE("IsaacSimControlBoardNWCROS2 positionMove and setRefSpeeds", "[ros2][i
         REQUIRE(std::abs(joint_refs.position[2] - ref_positions[2] * deg2rad) < 1e-6);
     }
 
-    SECTION("Test setRefSpeed with positionMove - single joint")
+    SECTION("setRefSpeed with positionMove - single joint")
     {
         dummy_node->resetJointReferencesFlag();
 
@@ -352,7 +264,7 @@ TEST_CASE("IsaacSimControlBoardNWCROS2 positionMove and setRefSpeeds", "[ros2][i
         REQUIRE(std::abs(joint_refs.position[1] - ref_position * deg2rad) < 1e-6);
     }
 
-    SECTION("Test positionMove - subset of joints")
+    SECTION("positionMove - subset of joints")
     {
         dummy_node->resetJointReferencesFlag();
 
