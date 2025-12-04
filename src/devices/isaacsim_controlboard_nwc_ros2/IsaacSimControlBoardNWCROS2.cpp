@@ -2409,13 +2409,11 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getEncoderSpeeds(double* spds)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getEncoderAcceleration(int j, double* acc)
 {
-    yCError(CB) << "[getEncoderAcceleration] It is not possible to get encoder acceleration in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getEncoderAccelerations(double* accs)
 {
-    yCError(CB) << "[getEncoderAccelerations] It is not possible to get encoder accelerations in Isaac sim.";
     return false;
 }
 
@@ -2578,13 +2576,11 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncoderSpeeds(double* spds)
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncoderAcceleration(int m, double* acc)
 {
-    yCError(CB) << "[getMotorEncoderAcceleration] It is not possible to get motor encoder acceleration in Isaac sim.";
     return false;
 }
 
 bool yarp::dev::IsaacSimControlBoardNWCROS2::getMotorEncoderAccelerations(double* accs)
 {
-    yCError(CB) << "[getMotorEncoderAccelerations] It is not possible to get motor encoder accelerations in Isaac sim.";
     return false;
 }
 
