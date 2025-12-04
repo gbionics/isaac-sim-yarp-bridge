@@ -65,6 +65,9 @@
         <xi:include href="wrappers/inertials/head-inertials_wrapper.xml" />
         <xi:include href="wrappers/inertials/waist-inertials_wrapper.xml" />
 
+        <!-- ESTIMATORS -->
+        <xi:include href="estimators/wholebodydynamics.xml" />
+
     </devices>
 
 </robot>
