@@ -87,7 +87,9 @@ bool yarp::dev::IsaacSimControlBoardNWCROS2::open(yarp::os::Searchable& config)
 
         if (!rclcpp::ok())
         {
-            rclcpp::init(0, nullptr);
+            rclcpp::InitOptions options;
+            options.shutdown_on_signal = false; // <-- disable ROS2 SIGINT handler
+            rclcpp::init(0, nullptr, options);
         }
 
         m_streamingNode = std::make_shared<CBStreamingNode>(
