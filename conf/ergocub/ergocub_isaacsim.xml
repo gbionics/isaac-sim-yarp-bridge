@@ -8,6 +8,25 @@
         <xi:include href="bridge/sensors/realsense_isaacsim.xml" />
         <xi:include href="wrappers/sensors/realsense_wrapper.xml" />
 
+        <!-- MOTOR CONTROL -->
+        <xi:include href="bridge/motorcontrol/head-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/torso-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/left_leg-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/right_leg-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/left_arm-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/right_arm-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/left_hand-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/right_hand-mc_isaacsim.xml" />
+
+        <xi:include href="wrappers/motorcontrol/head-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/torso-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/left_leg-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/right_leg-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/left_upper_arm-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/right_upper_arm-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/left_hand-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/right_hand-mc_wrapper.xml" />
+
         <!-- FT -->
         <xi:include href="bridge/FT/left_arm-FT_isaacsim.xml" />
         <xi:include href="bridge/FT/left_foot-FT_isaacsim.xml" />
