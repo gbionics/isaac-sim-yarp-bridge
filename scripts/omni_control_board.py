@@ -260,7 +260,9 @@ class ControlBoardState:
         self.home_positions = [default_positions[j] for j in joint_indices]
 
         # Get the joint types from the robot
-        self.joint_types = robot.get_dof_types(dof_names=self.joint_names)
+        self.joint_types = [
+            int(j) for j in robot.get_dof_types(dof_names=self.joint_names)
+        ]
 
 
 class ControlBoardNode(ROS2Node):
@@ -332,6 +334,9 @@ class ControlBoardNode(ROS2Node):
             vec = getattr(self.state, name)
             if len(vec) == 0:
                 output.type = ParameterType.PARAMETER_NOT_SET
+            elif all(isinstance(v, bool) for v in vec):
+                output.type = ParameterType.PARAMETER_BOOL_ARRAY
+                output.bool_array_value = getattr(self.state, name)
             elif all(isinstance(v, int) for v in vec):
                 output.type = ParameterType.PARAMETER_INTEGER_ARRAY
                 output.integer_array_value = getattr(self.state, name)
@@ -341,9 +346,6 @@ class ControlBoardNode(ROS2Node):
             elif all(isinstance(v, str) for v in vec):
                 output.type = ParameterType.PARAMETER_STRING_ARRAY
                 output.string_array_value = getattr(self.state, name)
-            elif all(isinstance(v, bool) for v in vec):
-                output.type = ParameterType.PARAMETER_BOOL_ARRAY
-                output.bool_array_value = getattr(self.state, name)
             else:
                 output.type = ParameterType.PARAMETER_NOT_SET
                 print(
@@ -359,7 +361,10 @@ class ControlBoardNode(ROS2Node):
             vec = getattr(self.state, name)
             if 0 <= index < len(vec):
                 v = vec[index]
-                if isinstance(v, int):
+                if isinstance(v, bool):
+                    output.type = ParameterType.PARAMETER_BOOL
+                    output.bool_value = v
+                elif isinstance(v, int):
                     output.type = ParameterType.PARAMETER_INTEGER
                     output.integer_value = v
                 elif isinstance(v, float):
@@ -368,9 +373,6 @@ class ControlBoardNode(ROS2Node):
                 elif isinstance(v, str):
                     output.type = ParameterType.PARAMETER_STRING
                     output.string_value = v
-                elif isinstance(v, bool):
-                    output.type = ParameterType.PARAMETER_BOOL
-                    output.bool_value = v
                 else:
                     print(
                         f"Unsupported type for parameter {name}[{index}]: {type(v)}. "
