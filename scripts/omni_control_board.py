@@ -247,17 +247,21 @@ class ControlBoardState:
 
         # Get joint limits from the robot
         dof_limits = robot.get_dof_limits()
-        self.min_positions = [dof_limits[0][j][0] for j in joint_indices]
-        self.max_positions = [dof_limits[0][j][1] for j in joint_indices]
-        self.max_velocities = robot.get_joint_max_velocities(
-            joint_indices=joint_indices
-        ).squeeze()
-        self.max_efforts = robot.get_max_efforts(joint_indices=joint_indices).squeeze()
+        self.min_positions = [float(dof_limits[0][j][0]) for j in joint_indices]
+        self.max_positions = [float(dof_limits[0][j][1]) for j in joint_indices]
+        self.max_velocities = (
+            robot.get_joint_max_velocities(joint_indices=joint_indices)
+            .squeeze()
+            .tolist()
+        )
+        self.max_efforts = (
+            robot.get_max_efforts(joint_indices=joint_indices).squeeze().tolist()
+        )
 
         # Get the home positions from the robot
         default_state = robot.get_joints_default_state()
         default_positions = default_state.positions[0]
-        self.home_positions = [default_positions[j] for j in joint_indices]
+        self.home_positions = [float(default_positions[j]) for j in joint_indices]
 
         # Get the joint types from the robot
         self.joint_types = [
@@ -1213,31 +1217,33 @@ def update_state(db: og.Database):
         if position_pid:
             reference = position_pid.get_reference()
             if reference:
-                cb_state.position_pid_references[i] = reference
+                cb_state.position_pid_references[i] = float(reference)
 
-            cb_state.position_pid_errors[i] = position_pid.get_error()
-            cb_state.position_pid_outputs[i] = position_pid.get_output()
+            cb_state.position_pid_errors[i] = float(position_pid.get_error())
+            cb_state.position_pid_outputs[i] = float(position_pid.get_output())
             if position_pid.smoother:
-                cb_state.is_motion_done[i] = position_pid.smoother.trajectory_completed
-                cb_state.position_pid_reference_velocities[i] = (
+                cb_state.is_motion_done[i] = bool(
+                    position_pid.smoother.trajectory_completed
+                )
+                cb_state.position_pid_reference_velocities[i] = float(
                     position_pid.smoother.speed
                 )
 
         if velocity_pid:
             reference = velocity_pid.get_reference()
             if reference:
-                cb_state.velocity_pid_references[i] = reference
+                cb_state.velocity_pid_references[i] = float(reference)
 
-            cb_state.velocity_pid_errors[i] = velocity_pid.get_error()
-            cb_state.velocity_pid_outputs[i] = velocity_pid.get_output()
+            cb_state.velocity_pid_errors[i] = float(velocity_pid.get_error())
+            cb_state.velocity_pid_outputs[i] = float(velocity_pid.get_output())
 
         if torque_reference is not None:
-            cb_state.torque_pid_references[i] = torque_reference
-            cb_state.torque_pid_outputs[i] = torque_reference
+            cb_state.torque_pid_references[i] = float(torque_reference)
+            cb_state.torque_pid_outputs[i] = float(torque_reference)
 
         if current_dict is not None:
-            cb_state.current_pid_references[i] = current_dict["reference"]
-            cb_state.current_pid_outputs[i] = current_dict["torque"]
+            cb_state.current_pid_references[i] = float(current_dict["reference"])
+            cb_state.current_pid_outputs[i] = float(current_dict["torque"])
 
 
 def reset_requested_pids(db: og.Database):
