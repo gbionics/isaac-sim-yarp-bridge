@@ -1,11 +1,10 @@
 // SPDX-FileCopyrightText: Fondazione Istituto Italiano di Tecnologia (IIT)
 // SPDX-License-Identifier: BSD-2-Clause
 #include "IsaacSimRGBDSensorNWCROS2.h"
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/image_encodings.hpp>
 #include <yarp/os/LogComponent.h>
 #include <yarp/os/LogStream.h>
-#include <sensor_msgs/image_encodings.hpp>
-#include <rclcpp/rclcpp.hpp>
-
 
 YARP_DECLARE_LOG_COMPONENT(RGBD)
 YARP_LOG_COMPONENT(RGBD, "yarp.device.IsaacSimRGBDSensorNWCROS2")
@@ -27,7 +26,8 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::open(yarp::os::Searchable& config)
     {
         rclcpp::init(0, nullptr);
     }
-    m_subscriber = std::make_shared<RGBDSubscriber>(m_paramsParser.m_node_name, m_paramsParser.m_rgb_topic_name, m_paramsParser.m_depth_topic_name, this);
+    m_subscriber = std::make_shared<RGBDSubscriber>(m_paramsParser.m_node_name, m_paramsParser.m_rgb_topic_name,
+                                                    m_paramsParser.m_depth_topic_name, this);
     m_executor = std::make_unique<rclcpp::executors::SingleThreadedExecutor>();
     m_executor->add_node(m_subscriber);
     m_executorThread = std::thread([this]() { m_executor->spin(); });
@@ -76,7 +76,8 @@ int yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbWidth()
     return m_rgbImage.width();
 }
 
-bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbSupportedConfigurations(yarp::sig::VectorOf<yarp::dev::CameraConfig>& configurations)
+bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbSupportedConfigurations(
+    yarp::sig::VectorOf<yarp::dev::CameraConfig>& configurations)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_rgbReceivedOnce)
@@ -302,7 +303,8 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getRgbImage(yarp::sig::FlexImage& rgb
     return true;
 }
 
-bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthImage(yarp::sig::ImageOf<yarp::sig::PixelFloat>& depthImage, yarp::os::Stamp* timeStamp)
+bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthImage(yarp::sig::ImageOf<yarp::sig::PixelFloat>& depthImage,
+                                                         yarp::os::Stamp* timeStamp)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_errorHandler.setPrefix("[getDepthImage] ");
@@ -322,7 +324,9 @@ bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getDepthImage(yarp::sig::ImageOf<yarp
     return true;
 }
 
-bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getImages(yarp::sig::FlexImage& colorFrame, yarp::sig::ImageOf<yarp::sig::PixelFloat>& depthFrame, yarp::os::Stamp* colorStamp, yarp::os::Stamp* depthStamp)
+bool yarp::dev::IsaacSimRGBDSensorNWCROS2::getImages(yarp::sig::FlexImage& colorFrame,
+                                                     yarp::sig::ImageOf<yarp::sig::PixelFloat>& depthFrame,
+                                                     yarp::os::Stamp* colorStamp, yarp::os::Stamp* depthStamp)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_errorHandler.setPrefix("[getImages] ");
@@ -432,7 +436,8 @@ void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateDepth(const sensor_msgs::msg::I
         int count = 0;
         for (; p < siz; p++)
         {
-            float value = static_cast<float>(*p) / 1000.0; // Convert from millimeters to meters, since the input is a 16-bit unsigned integer
+            float value = static_cast<float>(*p) /
+                          1000.0; // Convert from millimeters to meters, since the input is a 16-bit unsigned integer
             ((float*)(depthData))[c++] = value;
             count++;
         }
@@ -462,10 +467,12 @@ void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateDepth(const sensor_msgs::msg::I
     m_depthReceivedOnce = true;
 }
 
-yarp::sig::IntrinsicParams yarp::dev::IsaacSimRGBDSensorNWCROS2::convertCameraInfoToIntrinsic(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& cameraInfo)
+yarp::sig::IntrinsicParams yarp::dev::IsaacSimRGBDSensorNWCROS2::convertCameraInfoToIntrinsic(
+    const sensor_msgs::msg::CameraInfo::ConstSharedPtr& cameraInfo)
 {
     yarp::sig::IntrinsicParams output;
-    // See https://docs.isaacsim.omniverse.nvidia.com/5.0.0/ros2_tutorials/tutorial_ros2_camera.html#camera-info-helper-node
+    // See
+    // https://docs.isaacsim.omniverse.nvidia.com/5.0.0/ros2_tutorials/tutorial_ros2_camera.html#camera-info-helper-node
     output.focalLengthX = cameraInfo->k[0];
     output.focalLengthY = cameraInfo->k[4];
     output.principalPointX = cameraInfo->k[2];
@@ -485,14 +492,18 @@ void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateRGBInfo(const sensor_msgs::msg:
     m_rgbInfoReceivedOnce = true;
 }
 
-void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateDepthInfo(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& depthInfo)
+void yarp::dev::IsaacSimRGBDSensorNWCROS2::updateDepthInfo(
+    const sensor_msgs::msg::CameraInfo::ConstSharedPtr& depthInfo)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_depthIntrinsic = convertCameraInfoToIntrinsic(depthInfo);
     m_depthInfoReceivedOnce = true;
 }
 
-yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::RGBDSubscriber(const std::string& name, const std::string& rgbTopic, const std::string& depthTopic, IsaacSimRGBDSensorNWCROS2* parent)
+yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::RGBDSubscriber(const std::string& name,
+                                                                     const std::string& rgbTopic,
+                                                                     const std::string& depthTopic,
+                                                                     IsaacSimRGBDSensorNWCROS2* parent)
     : Node(name)
 {
     m_parent = parent; // Store the parent device pointer
@@ -501,37 +512,37 @@ yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::RGBDSubscriber(const std::
 
     // Subscribe to RGB and Depth topics
     m_rgb_sub = this->create_subscription<sensor_msgs::msg::Image>(
-    rgbTopic, queue_size,
-        std::bind(&RGBDSubscriber::callback_rgb, this, std::placeholders::_1));
+        rgbTopic, queue_size, std::bind(&RGBDSubscriber::callback_rgb, this, std::placeholders::_1));
     m_depth_sub = this->create_subscription<sensor_msgs::msg::Image>(
-    depthTopic, queue_size,
-        std::bind(&RGBDSubscriber::callback_depth, this, std::placeholders::_1));
+        depthTopic, queue_size, std::bind(&RGBDSubscriber::callback_depth, this, std::placeholders::_1));
 
     // Subscribe to CameraInfo topics
     m_rgb_info_sub = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-        rgbTopic + "/info", queue_size,
-        std::bind(&RGBDSubscriber::callback_rgb_info, this, std::placeholders::_1));
+        rgbTopic + "/info", queue_size, std::bind(&RGBDSubscriber::callback_rgb_info, this, std::placeholders::_1));
     m_depth_info_sub = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-        depthTopic + "/info", queue_size,
-        std::bind(&RGBDSubscriber::callback_depth_info, this, std::placeholders::_1));
+        depthTopic + "/info", queue_size, std::bind(&RGBDSubscriber::callback_depth_info, this, std::placeholders::_1));
 }
 
-void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback_rgb(const sensor_msgs::msg::Image::ConstSharedPtr& rgb)
+void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback_rgb(
+    const sensor_msgs::msg::Image::ConstSharedPtr& rgb)
 {
     m_parent->updateRGB(rgb);
 }
 
-void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback_depth(const sensor_msgs::msg::Image::ConstSharedPtr& depth)
+void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback_depth(
+    const sensor_msgs::msg::Image::ConstSharedPtr& depth)
 {
     m_parent->updateDepth(depth);
 }
 
-inline void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback_rgb_info(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& rgbInfo)
+inline void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback_rgb_info(
+    const sensor_msgs::msg::CameraInfo::ConstSharedPtr& rgbInfo)
 {
     m_parent->updateRGBInfo(rgbInfo);
 }
 
-void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback_depth_info(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& depthInfo)
+void yarp::dev::IsaacSimRGBDSensorNWCROS2::RGBDSubscriber::callback_depth_info(
+    const sensor_msgs::msg::CameraInfo::ConstSharedPtr& depthInfo)
 {
     m_parent->updateDepthInfo(depthInfo);
 }
@@ -556,5 +567,5 @@ void yarp::dev::IsaacSimRGBDSensorNWCROS2::ErrorHandler::operator<<(const std::s
 
 const std::string& yarp::dev::IsaacSimRGBDSensorNWCROS2::ErrorHandler::getLastErrorMsg() const
 {
-     return m_lastErrorMsg;
+    return m_lastErrorMsg;
 }

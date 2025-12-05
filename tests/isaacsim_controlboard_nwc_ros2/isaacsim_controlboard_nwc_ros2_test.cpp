@@ -1,31 +1,28 @@
+#include <IsaacSimControlBoardNWCROS2.h>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
 #include <rcl_interfaces/srv/get_parameters.hpp>
 #include <rcl_interfaces/srv/set_parameters.hpp>
-#include <yarp/os/Property.h>
-#include <yarp/os/Network.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
 #include <yarp/os/LogStream.h>
+#include <yarp/os/Network.h>
+#include <yarp/os/Property.h>
 #include <yarp/os/Vocab.h>
-#include <IsaacSimControlBoardNWCROS2.h>
 
-#include <thread>
-#include <memory>
 #include <chrono>
 #include <cmath>
+#include <memory>
+#include <thread>
 
 using namespace std::chrono_literals;
 
 class DummyCBNode : public rclcpp::Node
 {
 public:
-    DummyCBNode(const std::string &node_name,
-                const std::string &joint_state_topic,
-                const std::string &motor_state_topic,
-                const std::string &joint_references_topic,
-                const std::string &get_param_service,
-                const std::string &set_param_service)
+    DummyCBNode(const std::string& node_name, const std::string& joint_state_topic,
+                const std::string& motor_state_topic, const std::string& joint_references_topic,
+                const std::string& get_param_service, const std::string& set_param_service)
         : Node(node_name)
     {
         joint_state_pub = this->create_publisher<sensor_msgs::msg::JointState>(joint_state_topic, 10);
@@ -138,7 +135,8 @@ public:
     bool joint_references_received{false};
 
     // Store control modes
-    std::vector<int64_t> control_modes{VOCAB_CM_POSITION, VOCAB_CM_POSITION, VOCAB_CM_POSITION}; // Default to VOCAB_CM_POSITION
+    std::vector<int64_t> control_modes{VOCAB_CM_POSITION, VOCAB_CM_POSITION,
+                                       VOCAB_CM_POSITION}; // Default to VOCAB_CM_POSITION
     std::mutex control_modes_mutex;
 
     sensor_msgs::msg::JointState getLastJointReferences()
@@ -166,21 +164,15 @@ TEST_CASE("IsaacSimControlBoardNWCROS2", "[ros2][isaacsim_controlboard]")
     yarp::os::Network::init();
 
     // Dummy ROS2 node with required topics/services
-    auto dummy_node = std::make_shared<DummyCBNode>(
-        "dummy_cb_node",
-        "/joint_states",
-        "/motor_states",
-        "/joint_references",
-        "/get_parameters",
-        "/set_parameters");
+    auto dummy_node = std::make_shared<DummyCBNode>("dummy_cb_node", "/joint_states", "/motor_states",
+                                                    "/joint_references", "/get_parameters", "/set_parameters");
     rclcpp::executors::MultiThreadedExecutor executor;
     executor.add_node(dummy_node);
 
     auto sleep_duration = 50ms;
 
     // Start executor in a thread
-    std::thread exec_thread([&executor]()
-                            { executor.spin(); });
+    std::thread exec_thread([&executor]() { executor.spin(); });
 
     // Give time for services to be available
     std::this_thread::sleep_for(sleep_duration);

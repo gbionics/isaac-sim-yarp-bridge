@@ -7,25 +7,27 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rosgraph_msgs/msg/clock.hpp>
 
-
 #include <IsaacSimClockROS2.h>
-#include <yarp/os/Property.h>
 #include <yarp/os/Network.h>
+#include <yarp/os/Property.h>
 
 #include <chrono>
-#include <vector>
-#include <string>
 #include <memory>
+#include <string>
+#include <vector>
 
 using namespace std::chrono_literals;
 
-class TestNode : public rclcpp::Node {
+class TestNode : public rclcpp::Node
+{
 public:
-    TestNode() : Node("test_node") {
+    TestNode() : Node("test_node")
+    {
         m_clock_pub = this->create_publisher<rosgraph_msgs::msg::Clock>("/clock", 10);
     }
 
-    void publish_dummy_clock(rclcpp::Time timestamp) {
+    void publish_dummy_clock(rclcpp::Time timestamp)
+    {
         auto clock_msg = rosgraph_msgs::msg::Clock();
         clock_msg.clock = timestamp;
         m_clock_pub->publish(clock_msg);
@@ -35,10 +37,12 @@ private:
     rclcpp::Publisher<rosgraph_msgs::msg::Clock>::SharedPtr m_clock_pub;
 };
 
-TEST_CASE("Test use of clock in yarp (with nameserver)", "[ros2]") {
+TEST_CASE("Test use of clock in yarp (with nameserver)", "[ros2]")
+{
     yarp::os::Network::init();
 
-    if (!yarp::os::Network::checkNetwork(0.5)) {
+    if (!yarp::os::Network::checkNetwork(0.5))
+    {
         WARN("YARP network is not available, skipping the test with the nameserver");
         return;
     }
@@ -65,8 +69,8 @@ TEST_CASE("Test use of clock in yarp (with nameserver)", "[ros2]") {
     // Publish dummy messages
     double timestamp_value = stamp.seconds();
     auto start = std::chrono::steady_clock::now();
-    while (std::chrono::steady_clock::now() - start < 2s &&
-        std::abs(yarp::os::Time::now() - timestamp_value) > 1e-9) {
+    while (std::chrono::steady_clock::now() - start < 2s && std::abs(yarp::os::Time::now() - timestamp_value) > 1e-9)
+    {
         node->publish_dummy_clock(stamp);
         executor.spin_some();
         std::this_thread::sleep_for(50ms);
@@ -78,11 +82,13 @@ TEST_CASE("Test use of clock in yarp (with nameserver)", "[ros2]") {
     rclcpp::shutdown();
 }
 
-TEST_CASE("Test use of clock in yarp (local mode)", "[ros2]") {
+TEST_CASE("Test use of clock in yarp (local mode)", "[ros2]")
+{
     rclcpp::init(0, nullptr);
 
     yarp::os::Network::init();
-    if (!yarp::os::Network::checkNetwork(0.5)) {
+    if (!yarp::os::Network::checkNetwork(0.5))
+    {
         // We will be opening yarp ports in the tests, but we do not want to run the yarpserver, so let's set YARP
         // in local mode (everything will work fine as long as all the ports are opened in the same process)
         yarp::os::NetworkBase::setLocalMode(true);
@@ -109,7 +115,8 @@ TEST_CASE("Test use of clock in yarp (local mode)", "[ros2]") {
     double timestamp_value = stamp.seconds();
     yarp::os::Bottle* b = nullptr;
     auto start = std::chrono::steady_clock::now();
-    while (std::chrono::steady_clock::now() - start < 2s && b == nullptr) {
+    while (std::chrono::steady_clock::now() - start < 2s && b == nullptr)
+    {
         b = test_port.read(false);
         node->publish_dummy_clock(stamp);
         executor.spin_some();

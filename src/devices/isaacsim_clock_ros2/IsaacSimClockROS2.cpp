@@ -7,7 +7,8 @@
 YARP_DECLARE_LOG_COMPONENT(CLOCK)
 YARP_LOG_COMPONENT(CLOCK, "yarp.device.IsaacSimClockROS2")
 
-// This is inspired from https://github.com/robotology/gz-sim-yarp-plugins/blob/9155822ef1f6aae8c5aecf6472f11e345fca201a/plugins/clock/Clock.cc
+// This is inspired from
+// https://github.com/robotology/gz-sim-yarp-plugins/blob/9155822ef1f6aae8c5aecf6472f11e345fca201a/plugins/clock/Clock.cc
 
 yarp::dev::IsaacSimClockROS2::~IsaacSimClockROS2()
 {
@@ -82,8 +83,7 @@ void yarp::dev::IsaacSimClockROS2::updateClock(const rosgraph_msgs::msg::Clock::
         // Unfortunately, the yarpClockInit blocks on the port until it
         // receives data, so we need to launch it in a different thread
 
-        auto resetYARPNetworkClockLambda
-            = []() { yarp::os::NetworkBase::yarpClockInit(yarp::os::YARP_CLOCK_DEFAULT); };
+        auto resetYARPNetworkClockLambda = []() { yarp::os::NetworkBase::yarpClockInit(yarp::os::YARP_CLOCK_DEFAULT); };
         std::thread resetYARPNetworkClockThread(resetYARPNetworkClockLambda);
         resetYARPNetworkClockThread.detach();
         m_resetYARPClockAfterFirstPublish = false;
@@ -95,12 +95,12 @@ void yarp::dev::IsaacSimClockROS2::updateClock(const rosgraph_msgs::msg::Clock::
     m_clockPort.write();
 }
 
-yarp::dev::IsaacSimClockROS2::ClockSubscriber::ClockSubscriber(const std::string& name, const std::string& topicName, IsaacSimClockROS2* parent)
+yarp::dev::IsaacSimClockROS2::ClockSubscriber::ClockSubscriber(const std::string& name, const std::string& topicName,
+                                                               IsaacSimClockROS2* parent)
     : rclcpp::Node(name)
 {
     int queue_size = 10;
     // Subscribe to Clock topic
     m_clock_sub = this->create_subscription<rosgraph_msgs::msg::Clock>(
-        topicName, queue_size,
-        std::bind(&IsaacSimClockROS2::updateClock, parent, std::placeholders::_1));
+        topicName, queue_size, std::bind(&IsaacSimClockROS2::updateClock, parent, std::placeholders::_1));
 }

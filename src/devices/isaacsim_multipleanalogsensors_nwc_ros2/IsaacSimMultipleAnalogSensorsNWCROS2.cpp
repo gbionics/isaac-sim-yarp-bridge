@@ -74,10 +74,8 @@ bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::open(yarp::os::Searchable&
         rclcpp::init(0, nullptr);
     }
 
-    m_subscriber = std::make_shared<MASSubscriber>(m_paramsParser.m_node_name,
-                                                   m_paramsParser.m_imu_topic_names,
-                                                   m_paramsParser.m_ft_topic_names,
-                                                   this);
+    m_subscriber = std::make_shared<MASSubscriber>(m_paramsParser.m_node_name, m_paramsParser.m_imu_topic_names,
+                                                   m_paramsParser.m_ft_topic_names, this);
     m_executor = std::make_unique<rclcpp::executors::MultiThreadedExecutor>();
     m_executor->add_node(m_subscriber);
     m_executorThread = std::thread([this]() { m_executor->spin(); });
@@ -103,14 +101,16 @@ size_t yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getNrOfThreeAxisGyroscop
     return m_imus.size();
 }
 
-yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisGyroscopeStatus(size_t sens_index) const
+yarp::dev::MAS_status
+yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisGyroscopeStatus(size_t sens_index) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
 
     std::string errorPrefix = "[getThreeAxisGyroscopeStatus] ";
     if (sens_index >= m_imus.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available gyroscopes is" << m_imus.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available gyroscopes is"
+                     << m_imus.size();
         return MAS_status::MAS_UNKNOWN;
     }
 
@@ -126,27 +126,31 @@ yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeA
     return MAS_status::MAS_UNKNOWN;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisGyroscopeName(size_t sens_index, std::string& name) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisGyroscopeName(size_t sens_index,
+                                                                                std::string& name) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getThreeAxisGyroscopeName] ";
 
     if (sens_index >= m_imus.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available gyroscopes is" << m_imus.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available gyroscopes is"
+                     << m_imus.size();
         return false;
     }
     name = m_imus[sens_index].name;
     return true;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisGyroscopeFrameName(size_t sens_index, std::string& frameName) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisGyroscopeFrameName(size_t sens_index,
+                                                                                     std::string& frameName) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getThreeAxisGyroscopeFrameName] ";
     if (sens_index >= m_imus.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available gyroscopes is" << m_imus.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available gyroscopes is"
+                     << m_imus.size();
         return false;
     }
 
@@ -163,13 +167,16 @@ bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisGyroscopeFrame
     return true;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisGyroscopeMeasure(size_t sens_index, yarp::sig::Vector& out, double& timestamp) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisGyroscopeMeasure(size_t sens_index,
+                                                                                   yarp::sig::Vector& out,
+                                                                                   double& timestamp) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getThreeAxisGyroscopeMeasure] ";
     if (sens_index >= m_imus.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available gyroscopes is" << m_imus.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available gyroscopes is"
+                     << m_imus.size();
         return false;
     }
     if (m_imus[sens_index].valid)
@@ -192,13 +199,15 @@ size_t yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getNrOfThreeAxisLinearAc
     return m_imus.size();
 }
 
-yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisLinearAccelerometerStatus(size_t sens_index) const
+yarp::dev::MAS_status
+yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisLinearAccelerometerStatus(size_t sens_index) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getThreeAxisLinearAccelerometerStatus] ";
     if (sens_index >= m_imus.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available linear accelerometers is" << m_imus.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index
+                     << "out of range. The number of available linear accelerometers is" << m_imus.size();
         return MAS_status::MAS_UNKNOWN;
     }
     if (m_imus[sens_index].valid)
@@ -212,26 +221,30 @@ yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeA
     return MAS_status::MAS_UNKNOWN;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisLinearAccelerometerName(size_t sens_index, std::string& name) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisLinearAccelerometerName(size_t sens_index,
+                                                                                          std::string& name) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getThreeAxisLinearAccelerometerName] ";
     if (sens_index >= m_imus.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available linear accelerometers is" << m_imus.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index
+                     << "out of range. The number of available linear accelerometers is" << m_imus.size();
         return false;
     }
     name = m_imus[sens_index].name;
     return true;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisLinearAccelerometerFrameName(size_t sens_index, std::string& frameName) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisLinearAccelerometerFrameName(
+    size_t sens_index, std::string& frameName) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getThreeAxisLinearAccelerometerFrameName] ";
     if (sens_index >= m_imus.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available linear accelerometers is" << m_imus.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index
+                     << "out of range. The number of available linear accelerometers is" << m_imus.size();
         return false;
     }
     if (m_imus[sens_index].valid)
@@ -247,13 +260,16 @@ bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisLinearAccelero
     return true;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisLinearAccelerometerMeasure(size_t sens_index, yarp::sig::Vector& out, double& timestamp) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisLinearAccelerometerMeasure(size_t sens_index,
+                                                                                             yarp::sig::Vector& out,
+                                                                                             double& timestamp) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getThreeAxisLinearAccelerometerMeasure] ";
     if (sens_index >= m_imus.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available linear accelerometers is" << m_imus.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index
+                     << "out of range. The number of available linear accelerometers is" << m_imus.size();
         return false;
     }
     if (m_imus[sens_index].valid)
@@ -275,27 +291,35 @@ size_t yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getNrOfThreeAxisAngularA
     return 0;
 }
 
-yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisAngularAccelerometerStatus(size_t /*sens_index*/) const
+yarp::dev::MAS_status
+yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisAngularAccelerometerStatus(size_t /*sens_index*/) const
 {
-    yCErrorOnce(MAS) << "[getThreeAxisAngularAccelerometerStatus] This device does not implement three axis angular accelerometers";
+    yCErrorOnce(MAS)
+        << "[getThreeAxisAngularAccelerometerStatus] This device does not implement three axis angular accelerometers";
     return MAS_status::MAS_UNKNOWN;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisAngularAccelerometerName(size_t /*sens_index*/, std::string& /*name*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisAngularAccelerometerName(size_t /*sens_index*/,
+                                                                                           std::string& /*name*/) const
 {
-    yCErrorOnce(MAS) << "[getThreeAxisAngularAccelerometerName] This device does not implement three axis angular accelerometers";
+    yCErrorOnce(MAS)
+        << "[getThreeAxisAngularAccelerometerName] This device does not implement three axis angular accelerometers";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisAngularAccelerometerFrameName(size_t /*sens_index*/, std::string& /*frameName*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisAngularAccelerometerFrameName(
+    size_t /*sens_index*/, std::string& /*frameName*/) const
 {
-    yCErrorOnce(MAS) << "[getThreeAxisAngularAccelerometerFrameName] This device does not implement three axis angular accelerometers";
+    yCErrorOnce(MAS) << "[getThreeAxisAngularAccelerometerFrameName] This device does not implement three axis angular "
+                        "accelerometers";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisAngularAccelerometerMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisAngularAccelerometerMeasure(
+    size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const
 {
-    yCErrorOnce(MAS) << "[getThreeAxisAngularAccelerometerMeasure] This device does not implement three axis angular accelerometers";
+    yCErrorOnce(MAS)
+        << "[getThreeAxisAngularAccelerometerMeasure] This device does not implement three axis angular accelerometers";
     return false;
 }
 
@@ -304,25 +328,30 @@ size_t yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getNrOfThreeAxisMagnetom
     return 0;
 }
 
-yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisMagnetometerStatus(size_t /*sens_index*/) const
+yarp::dev::MAS_status
+yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisMagnetometerStatus(size_t /*sens_index*/) const
 {
     yCErrorOnce(MAS) << "[getThreeAxisMagnetometerStatus] This device does not implement three axis magnetometers";
     return MAS_status::MAS_UNKNOWN;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisMagnetometerName(size_t /*sens_index*/, std::string& /*name*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisMagnetometerName(size_t /*sens_index*/,
+                                                                                   std::string& /*name*/) const
 {
     yCErrorOnce(MAS) << "[getThreeAxisMagnetometerName] This device does not implement three axis magnetometers";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisMagnetometerFrameName(size_t /*sens_index*/, std::string& /*frameName*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisMagnetometerFrameName(
+    size_t /*sens_index*/, std::string& /*frameName*/) const
 {
     yCErrorOnce(MAS) << "[getThreeAxisMagnetometerFrameName] This device does not implement three axis magnetometers";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisMagnetometerMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getThreeAxisMagnetometerMeasure(size_t /*sens_index*/,
+                                                                                      yarp::sig::Vector& /*out*/,
+                                                                                      double& /*timestamp*/) const
 {
     yCErrorOnce(MAS) << "[getThreeAxisMagnetometerMeasure] This device does not implement three axis magnetometers";
     return false;
@@ -334,13 +363,15 @@ size_t yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getNrOfOrientationSensor
     return m_imus.size();
 }
 
-yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getOrientationSensorStatus(size_t sens_index) const
+yarp::dev::MAS_status
+yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getOrientationSensorStatus(size_t sens_index) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getOrientationSensorStatus] ";
     if (sens_index >= m_imus.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available orientation sensors is" << m_imus.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index
+                     << "out of range. The number of available orientation sensors is" << m_imus.size();
         return MAS_status::MAS_UNKNOWN;
     }
     if (m_imus[sens_index].valid)
@@ -354,26 +385,30 @@ yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getOrient
     return MAS_status::MAS_UNKNOWN;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getOrientationSensorName(size_t sens_index, std::string& name) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getOrientationSensorName(size_t sens_index,
+                                                                               std::string& name) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getOrientationSensorName] ";
     if (sens_index >= m_imus.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available orientation sensors is" << m_imus.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index
+                     << "out of range. The number of available orientation sensors is" << m_imus.size();
         return false;
     }
     name = m_imus[sens_index].name;
     return true;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getOrientationSensorFrameName(size_t sens_index, std::string& frameName) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getOrientationSensorFrameName(size_t sens_index,
+                                                                                    std::string& frameName) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getOrientationSensorFrameName] ";
     if (sens_index >= m_imus.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available orientation sensors is" << m_imus.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index
+                     << "out of range. The number of available orientation sensors is" << m_imus.size();
         return false;
     }
     if (m_imus[sens_index].valid)
@@ -389,13 +424,16 @@ bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getOrientationSensorFrameN
     return true;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getOrientationSensorMeasureAsRollPitchYaw(size_t sens_index, yarp::sig::Vector& rpy, double& timestamp) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getOrientationSensorMeasureAsRollPitchYaw(size_t sens_index,
+                                                                                                yarp::sig::Vector& rpy,
+                                                                                                double& timestamp) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getOrientationSensorMeasureAsRollPitchYaw] ";
     if (sens_index >= m_imus.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available orientation sensors is" << m_imus.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index
+                     << "out of range. The number of available orientation sensors is" << m_imus.size();
         return false;
     }
     if (m_imus[sens_index].valid)
@@ -417,31 +455,37 @@ size_t yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getNrOfTemperatureSensor
     return 0;
 }
 
-yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getTemperatureSensorStatus(size_t /*sens_index*/) const
+yarp::dev::MAS_status
+yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getTemperatureSensorStatus(size_t /*sens_index*/) const
 {
     yCErrorOnce(MAS) << "[getTemperatureSensorStatus] This device does not implement temperature sensors";
     return MAS_status::MAS_UNKNOWN;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getTemperatureSensorName(size_t /*sens_index*/, std::string& /*name*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getTemperatureSensorName(size_t /*sens_index*/,
+                                                                               std::string& /*name*/) const
 {
     yCErrorOnce(MAS) << "[getTemperatureSensorName] This device does not implement temperature sensors";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getTemperatureSensorFrameName(size_t /*sens_index*/, std::string& /*frameName*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getTemperatureSensorFrameName(size_t /*sens_index*/,
+                                                                                    std::string& /*frameName*/) const
 {
     yCErrorOnce(MAS) << "[getTemperatureSensorFrameName] This device does not implement temperature sensors";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getTemperatureSensorMeasure(size_t /*sens_index*/, double& out, double& /*timestamp*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getTemperatureSensorMeasure(size_t /*sens_index*/, double& out,
+                                                                                  double& /*timestamp*/) const
 {
     yCErrorOnce(MAS) << "[getTemperatureSensorMeasure] This device does not implement temperature sensors";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getTemperatureSensorMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getTemperatureSensorMeasure(size_t /*sens_index*/,
+                                                                                  yarp::sig::Vector& /*out*/,
+                                                                                  double& /*timestamp*/) const
 {
     yCErrorOnce(MAS) << "[getTemperatureSensorMeasure] This device does not implement temperature sensors";
     return false;
@@ -453,13 +497,15 @@ size_t yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getNrOfSixAxisForceTorqu
     return m_fts.size();
 }
 
-yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSixAxisForceTorqueSensorStatus(size_t sens_index) const
+yarp::dev::MAS_status
+yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSixAxisForceTorqueSensorStatus(size_t sens_index) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getSixAxisForceTorqueSensorStatus] ";
     if (sens_index >= m_fts.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available six axis force torque sensors is" << m_fts.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index
+                     << "out of range. The number of available six axis force torque sensors is" << m_fts.size();
         return MAS_status::MAS_UNKNOWN;
     }
     if (m_fts[sens_index].valid)
@@ -473,26 +519,30 @@ yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSixAxi
     return MAS_status::MAS_UNKNOWN;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSixAxisForceTorqueSensorName(size_t sens_index, std::string& name) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSixAxisForceTorqueSensorName(size_t sens_index,
+                                                                                      std::string& name) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getSixAxisForceTorqueSensorName] ";
     if (sens_index >= m_fts.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available six axis force torque sensors is" << m_fts.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index
+                     << "out of range. The number of available six axis force torque sensors is" << m_fts.size();
         return false;
     }
     name = m_fts[sens_index].name;
     return true;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSixAxisForceTorqueSensorFrameName(size_t sens_index, std::string& frame) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSixAxisForceTorqueSensorFrameName(size_t sens_index,
+                                                                                           std::string& frame) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getSixAxisForceTorqueSensorFrameName] ";
     if (sens_index >= m_fts.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available six axis force torque sensors is" << m_fts.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index
+                     << "out of range. The number of available six axis force torque sensors is" << m_fts.size();
         return false;
     }
     if (m_fts[sens_index].valid)
@@ -508,13 +558,16 @@ bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSixAxisForceTorqueSenso
     return true;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSixAxisForceTorqueSensorMeasure(size_t sens_index, yarp::sig::Vector& out, double& timestamp) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSixAxisForceTorqueSensorMeasure(size_t sens_index,
+                                                                                         yarp::sig::Vector& out,
+                                                                                         double& timestamp) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string errorPrefix = "[getSixAxisForceTorqueSensorMeasure] ";
     if (sens_index >= m_fts.size())
     {
-        yCError(MAS) << errorPrefix << "Index" << sens_index << "out of range. The number of available six axis force torque sensors is" << m_fts.size();
+        yCError(MAS) << errorPrefix << "Index" << sens_index
+                     << "out of range. The number of available six axis force torque sensors is" << m_fts.size();
         return false;
     }
     if (m_fts[sens_index].valid)
@@ -536,19 +589,23 @@ size_t yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getNrOfContactLoadCellAr
     return 0;
 }
 
-yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getContactLoadCellArrayStatus(size_t /*sens_index*/) const
+yarp::dev::MAS_status
+yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getContactLoadCellArrayStatus(size_t /*sens_index*/) const
 {
     yCErrorOnce(MAS) << "[getContactLoadCellArrayStatus] This device does not implement contact load cell arrays";
     return MAS_status::MAS_UNKNOWN;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getContactLoadCellArrayName(size_t /*sens_index*/, std::string& /*name*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getContactLoadCellArrayName(size_t /*sens_index*/,
+                                                                                  std::string& /*name*/) const
 {
     yCErrorOnce(MAS) << "[getContactLoadCellArrayName] This device does not implement contact load cell arrays";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getContactLoadCellArrayMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getContactLoadCellArrayMeasure(size_t /*sens_index*/,
+                                                                                     yarp::sig::Vector& /*out*/,
+                                                                                     double& /*timestamp*/) const
 {
     yCErrorOnce(MAS) << "[getContactLoadCellArrayMeasure] This device does not implement contact load cell arrays";
     return false;
@@ -564,19 +621,23 @@ size_t yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getNrOfEncoderArrays() c
     return 0;
 }
 
-yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getEncoderArrayStatus(size_t /*sens_index*/) const
+yarp::dev::MAS_status
+yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getEncoderArrayStatus(size_t /*sens_index*/) const
 {
     yCErrorOnce(MAS) << "[getEncoderArrayStatus] This device does not implement encoder arrays";
     return MAS_status::MAS_UNKNOWN;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getEncoderArrayName(size_t /*sens_index*/, std::string& /*name*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getEncoderArrayName(size_t /*sens_index*/,
+                                                                          std::string& /*name*/) const
 {
     yCErrorOnce(MAS) << "[getEncoderArrayName] This device does not implement encoder arrays";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getEncoderArrayMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getEncoderArrayMeasure(size_t /*sens_index*/,
+                                                                             yarp::sig::Vector& /*out*/,
+                                                                             double& /*timestamp*/) const
 {
     yCErrorOnce(MAS) << "[getEncoderArrayMeasure] This device does not implement encoder arrays";
     return false;
@@ -598,13 +659,16 @@ yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSkinPa
     return MAS_status::MAS_UNKNOWN;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSkinPatchName(size_t /*sens_index*/, std::string& /*name*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSkinPatchName(size_t /*sens_index*/,
+                                                                       std::string& /*name*/) const
 {
     yCErrorOnce(MAS) << "[getSkinPatchName] This device does not implement skin patches";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSkinPatchMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*out*/, double& /*timestamp*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getSkinPatchMeasure(size_t /*sens_index*/,
+                                                                          yarp::sig::Vector& /*out*/,
+                                                                          double& /*timestamp*/) const
 {
     yCErrorOnce(MAS) << "[getSkinPatchMeasure] This device does not implement skin patches";
     return false;
@@ -620,25 +684,30 @@ size_t yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getNrOfPositionSensors()
     return 0;
 }
 
-yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getPositionSensorStatus(size_t /*sens_index*/) const
+yarp::dev::MAS_status
+yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getPositionSensorStatus(size_t /*sens_index*/) const
 {
     yCErrorOnce(MAS) << "[getPositionSensorStatus] This device does not implement position sensors";
     return MAS_status::MAS_UNKNOWN;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getPositionSensorName(size_t /*sens_index*/, std::string& /*name*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getPositionSensorName(size_t /*sens_index*/,
+                                                                            std::string& /*name*/) const
 {
     yCErrorOnce(MAS) << "[getPositionSensorName] This device does not implement position sensors";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getPositionSensorFrameName(size_t /*sens_index*/, std::string& /*frameName*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getPositionSensorFrameName(size_t /*sens_index*/,
+                                                                                 std::string& /*frameName*/) const
 {
     yCErrorOnce(MAS) << "[getPositionSensorFrameName] This device does not implement position sensors";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getPositionSensorMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*xyz*/, double& /*timestamp*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getPositionSensorMeasure(size_t /*sens_index*/,
+                                                                               yarp::sig::Vector& /*xyz*/,
+                                                                               double& /*timestamp*/) const
 {
     yCErrorOnce(MAS) << "[getPositionSensorMeasure] This device does not implement position sensors";
     return false;
@@ -649,31 +718,37 @@ size_t yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getNrOfLinearVelocitySen
     return 0;
 }
 
-yarp::dev::MAS_status yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getLinearVelocitySensorStatus(size_t /*sens_index*/) const
+yarp::dev::MAS_status
+yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getLinearVelocitySensorStatus(size_t /*sens_index*/) const
 {
     yCErrorOnce(MAS) << "[getLinearVelocitySensorStatus] This device does not implement linear velocity sensors";
     return MAS_status::MAS_UNKNOWN;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getLinearVelocitySensorName(size_t /*sens_index*/, std::string& /*name*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getLinearVelocitySensorName(size_t /*sens_index*/,
+                                                                                  std::string& /*name*/) const
 {
     yCErrorOnce(MAS) << "[getLinearVelocitySensorName] This device does not implement linear velocity sensors";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getLinearVelocitySensorFrameName(size_t /*sens_index*/, std::string& /*frameName*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getLinearVelocitySensorFrameName(size_t /*sens_index*/,
+                                                                                       std::string& /*frameName*/) const
 {
     yCErrorOnce(MAS) << "[getLinearVelocitySensorFrameName] This device does not implement linear velocity sensors";
     return false;
 }
 
-bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getLinearVelocitySensorMeasure(size_t /*sens_index*/, yarp::sig::Vector& /*xyz*/, double& /*timestamp*/) const
+bool yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::getLinearVelocitySensorMeasure(size_t /*sens_index*/,
+                                                                                     yarp::sig::Vector& /*xyz*/,
+                                                                                     double& /*timestamp*/) const
 {
     yCErrorOnce(MAS) << "[getLinearVelocitySensorMeasure] This device does not implement linear velocity sensors";
     return false;
 }
 
-void yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::IMUMeasure::convert_to_yarp_vectors(const sensor_msgs::msg::Imu::ConstSharedPtr& imu)
+void yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::IMUMeasure::convert_to_yarp_vectors(
+    const sensor_msgs::msg::Imu::ConstSharedPtr& imu)
 {
     std::lock_guard<std::mutex> lock(mutex);
     yarp::sig::Matrix rot_matrix(3, 3);
@@ -687,27 +762,28 @@ void yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::IMUMeasure::convert_to_yar
     double qy = imu->orientation.y;
     double qz = imu->orientation.z;
 
-    //Copied from https://github.com/robotology/idyntree/blob/e836c8b87ab1faafa4c97d55b1f989422c743efd/src/core/src/Rotation.cpp#L361-L429
-    //See https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Quaternion-derived_rotation_matrix
+    // Copied from
+    // https://github.com/robotology/idyntree/blob/e836c8b87ab1faafa4c97d55b1f989422c743efd/src/core/src/Rotation.cpp#L361-L429
+    // See https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Quaternion-derived_rotation_matrix
 
-    //To avoid memory allocation "unroll" the summation of Rodrigues' Formula
-    // R = I3 + 2s S(r) + 2S(r)^2,
+    // To avoid memory allocation "unroll" the summation of Rodrigues' Formula
+    //  R = I3 + 2s S(r) + 2S(r)^2,
 
-    //The square of S(r) is symmetric, thus the diagonal elements are
-    //filled only by that part
+    // The square of S(r) is symmetric, thus the diagonal elements are
+    // filled only by that part
     rot_matrix(0, 0) = 1 - 2 * (qz * qz + qy * qy);
     rot_matrix(1, 1) = 1 - 2 * (qz * qz + qx * qx);
     rot_matrix(2, 2) = 1 - 2 * (qy * qy + qx * qx);
 
-    //The off diagonal elements are filled by
+    // The off diagonal elements are filled by
     //(symmetrically) from the S(r)^2
     //(antisymmetrically) from the S(r)
-    //Symmetric part
+    // Symmetric part
     rot_matrix(0, 1) = rot_matrix(1, 0) = 2 * qx * qy;
     rot_matrix(0, 2) = rot_matrix(2, 0) = 2 * qx * qz;
     rot_matrix(1, 2) = rot_matrix(2, 1) = 2 * qy * qz;
 
-    //antisymmetric part
+    // antisymmetric part
     double r01, r02, r12;
 
     r01 = 2 * qw * (-1) * qz;
@@ -786,7 +862,8 @@ yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::IMUMeasure::IMUMeasure(const IM
     valid = other.valid.load();
 }
 
-void yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::FTMeasure::convert_to_yarp_vectors(const geometry_msgs::msg::WrenchStamped::ConstSharedPtr& ft)
+void yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::FTMeasure::convert_to_yarp_vectors(
+    const geometry_msgs::msg::WrenchStamped::ConstSharedPtr& ft)
 {
     std::lock_guard<std::mutex> lock(mutex);
     force_torque[0] = ft->wrench.force.x;
@@ -812,7 +889,9 @@ yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::FTMeasure::FTMeasure(const FTMe
     valid = other.valid.load();
 }
 
-yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::MASSubscriber::MASSubscriber(const std::string& name, const std::vector<std::string>& imuTopics, const std::vector<std::string>& ftTopics, IsaacSimMultipleAnalogSensorsNWCROS2* parent)
+yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::MASSubscriber::MASSubscriber(
+    const std::string& name, const std::vector<std::string>& imuTopics, const std::vector<std::string>& ftTopics,
+    IsaacSimMultipleAnalogSensorsNWCROS2* parent)
     : Node(name)
 {
     int queue_size = 10;
@@ -834,13 +913,13 @@ yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::MASSubscriber::MASSubscriber(co
             imu_ptr->name = imuTopics[i];
         }
 
-        m_imu_subs.push_back(this->create_subscription<sensor_msgs::msg::Imu>(
-            imuTopics[i], queue_size,
-            [imu_ptr](const sensor_msgs::msg::Imu::ConstSharedPtr& imu)
-        {
-            imu_ptr->convert_to_yarp_vectors(imu);
-            imu_ptr->valid =  true;
-        }));
+        m_imu_subs.push_back(
+            this->create_subscription<sensor_msgs::msg::Imu>(imuTopics[i], queue_size,
+                                                             [imu_ptr](const sensor_msgs::msg::Imu::ConstSharedPtr& imu)
+                                                             {
+                                                                 imu_ptr->convert_to_yarp_vectors(imu);
+                                                                 imu_ptr->valid = true;
+                                                             }));
     }
 
     for (size_t i = 0; i < ftTopics.size(); ++i)
@@ -859,9 +938,9 @@ yarp::dev::IsaacSimMultipleAnalogSensorsNWCROS2::MASSubscriber::MASSubscriber(co
         m_ft_subs.push_back(this->create_subscription<geometry_msgs::msg::WrenchStamped>(
             ftTopics[i], queue_size,
             [ft_ptr](const geometry_msgs::msg::WrenchStamped::ConstSharedPtr& ft)
-        {
-            ft_ptr->convert_to_yarp_vectors(ft);
-            ft_ptr->valid = true;
-        }));
+            {
+                ft_ptr->convert_to_yarp_vectors(ft);
+                ft_ptr->valid = true;
+            }));
     }
 }

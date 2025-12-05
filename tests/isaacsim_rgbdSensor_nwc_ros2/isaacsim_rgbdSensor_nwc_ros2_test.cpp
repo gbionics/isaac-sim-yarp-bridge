@@ -8,34 +8,37 @@
 #include <sensor_msgs/msg/image.hpp>
 
 #include <IsaacSimRGBDSensorNWCROS2.h>
-#include <yarp/sig/Image.h>
-#include <yarp/os/Property.h>
 #include <yarp/os/Network.h>
+#include <yarp/os/Property.h>
+#include <yarp/sig/Image.h>
 
 #include <chrono>
-#include <vector>
-#include <string>
 #include <memory>
+#include <string>
+#include <vector>
 
 using namespace std::chrono_literals;
 
-class TestNode : public rclcpp::Node {
+class TestNode : public rclcpp::Node
+{
 public:
-    TestNode() : Node("test_node") {
+    TestNode() : Node("test_node")
+    {
         m_rgb_pub = this->create_publisher<sensor_msgs::msg::Image>("/camera/rgb/image_raw", 10);
         m_depth_pub = this->create_publisher<sensor_msgs::msg::Image>("/camera/depth/image_raw", 10);
         m_rgb_info_pub = this->create_publisher<sensor_msgs::msg::CameraInfo>("/camera/rgb/image_raw/info", 10);
         m_depth_info_pub = this->create_publisher<sensor_msgs::msg::CameraInfo>("/camera/depth/image_raw/info", 10);
     }
 
-    void publish_dummy_images() {
+    void publish_dummy_images()
+    {
         auto rgb_msg = sensor_msgs::msg::Image();
         rgb_msg.height = 2;
         rgb_msg.width = 2;
         rgb_msg.encoding = "rgb8";
         rgb_msg.is_bigendian = false;
         rgb_msg.step = rgb_msg.width * 3;
-        rgb_msg.data = { 255, 0, 0,   0, 255, 0,   0, 0, 255,   255, 255, 255 };
+        rgb_msg.data = {255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255};
         rgb_msg.header.stamp = now();
         rgb_msg.header.frame_id = "rgb_frame";
 
@@ -55,18 +58,19 @@ public:
         m_depth_pub->publish(depth_msg);
     }
 
-    void publish_dummy_camera_info() {
+    void publish_dummy_camera_info()
+    {
         auto rgb_info_msg = sensor_msgs::msg::CameraInfo();
         rgb_info_msg.height = 2;
         rgb_info_msg.width = 2;
-        rgb_info_msg.k = { 100.0, 0.0, 1.0, 0.0, 100.0, 1.0, 0.0, 0.0, 1.0 };
+        rgb_info_msg.k = {100.0, 0.0, 1.0, 0.0, 100.0, 1.0, 0.0, 0.0, 1.0};
         rgb_info_msg.header.stamp = now();
         rgb_info_msg.header.frame_id = "rgb_frame";
         m_rgb_info_pub->publish(rgb_info_msg);
         auto depth_info_msg = sensor_msgs::msg::CameraInfo();
         depth_info_msg.height = 2;
         depth_info_msg.width = 2;
-        depth_info_msg.k = { 100.0, 0.0, 1.0, 0.0, 100.0, 1.0, 0.0, 0.0, 1.0 };
+        depth_info_msg.k = {100.0, 0.0, 1.0, 0.0, 100.0, 1.0, 0.0, 0.0, 1.0};
         depth_info_msg.header.stamp = now();
         depth_info_msg.header.frame_id = "depth_frame";
         m_depth_info_pub->publish(depth_info_msg);
@@ -79,7 +83,8 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr m_depth_info_pub;
 };
 
-TEST_CASE("RGB and Depth image reception", "[ros2]") {
+TEST_CASE("RGB and Depth image reception", "[ros2]")
+{
     rclcpp::init(0, nullptr);
     yarp::os::Network::init();
 
@@ -104,10 +109,12 @@ TEST_CASE("RGB and Depth image reception", "[ros2]") {
     yarp::sig::FlexImage rgb_image;
     yarp::sig::ImageOf<yarp::sig::PixelFloat> depth_image;
 
-    while (std::chrono::steady_clock::now() - start < 2s) {
+    while (std::chrono::steady_clock::now() - start < 2s)
+    {
         executor.spin_some();
-        if (device.getSensorStatus() == yarp::dev::IRGBDSensor::RGBD_SENSOR_OK_IN_USE
-            && device.getImages(rgb_image, depth_image)) {
+        if (device.getSensorStatus() == yarp::dev::IRGBDSensor::RGBD_SENSOR_OK_IN_USE &&
+            device.getImages(rgb_image, depth_image))
+        {
             received = true;
             break;
         }
@@ -131,15 +138,12 @@ TEST_CASE("RGB and Depth image reception", "[ros2]") {
     REQUIRE(rgb_image.getRawImage()[10] == 255);
     REQUIRE(rgb_image.getRawImage()[11] == 255);
 
-
     REQUIRE(depth_image.height() == 2);
     REQUIRE(depth_image.width() == 2);
 
     float received_depth;
     std::memcpy(&received_depth, depth_image.getRawImage(), sizeof(float));
-    REQUIRE_THAT(received_depth,
-        Catch::Matchers::WithinULP(1.23f, 0));
-
+    REQUIRE_THAT(received_depth, Catch::Matchers::WithinULP(1.23f, 0));
 
     node->publish_dummy_camera_info();
 
@@ -149,10 +153,11 @@ TEST_CASE("RGB and Depth image reception", "[ros2]") {
     yarp::os::Property rgb_intrinsic;
     yarp::os::Property depth_intrinsic;
 
-    while (std::chrono::steady_clock::now() - start < 2s) {
+    while (std::chrono::steady_clock::now() - start < 2s)
+    {
         executor.spin_some();
-        if (device.getRgbIntrinsicParam(rgb_intrinsic)
-            && device.getDepthIntrinsicParam(depth_intrinsic)) {
+        if (device.getRgbIntrinsicParam(rgb_intrinsic) && device.getDepthIntrinsicParam(depth_intrinsic))
+        {
             received = true;
             break;
         }
@@ -160,23 +165,15 @@ TEST_CASE("RGB and Depth image reception", "[ros2]") {
     }
 
     REQUIRE(received);
-    REQUIRE_THAT(rgb_intrinsic.find("focalLengthX").asFloat64(),
-        Catch::Matchers::WithinULP(100.0, 0));
-    REQUIRE_THAT(rgb_intrinsic.find("focalLengthY").asFloat64(),
-        Catch::Matchers::WithinULP(100.0, 0));
-    REQUIRE_THAT(rgb_intrinsic.find("principalPointX").asFloat64(),
-        Catch::Matchers::WithinULP(1.0, 0));
-    REQUIRE_THAT(rgb_intrinsic.find("principalPointY").asFloat64(),
-        Catch::Matchers::WithinULP(1.0, 0));
+    REQUIRE_THAT(rgb_intrinsic.find("focalLengthX").asFloat64(), Catch::Matchers::WithinULP(100.0, 0));
+    REQUIRE_THAT(rgb_intrinsic.find("focalLengthY").asFloat64(), Catch::Matchers::WithinULP(100.0, 0));
+    REQUIRE_THAT(rgb_intrinsic.find("principalPointX").asFloat64(), Catch::Matchers::WithinULP(1.0, 0));
+    REQUIRE_THAT(rgb_intrinsic.find("principalPointY").asFloat64(), Catch::Matchers::WithinULP(1.0, 0));
 
-    REQUIRE_THAT(depth_intrinsic.find("focalLengthX").asFloat64(),
-        Catch::Matchers::WithinULP(100.0, 0));
-    REQUIRE_THAT(depth_intrinsic.find("focalLengthY").asFloat64(),
-        Catch::Matchers::WithinULP(100.0, 0));
-    REQUIRE_THAT(depth_intrinsic.find("principalPointX").asFloat64(),
-        Catch::Matchers::WithinULP(1.0, 0));
-    REQUIRE_THAT(depth_intrinsic.find("principalPointY").asFloat64(),
-        Catch::Matchers::WithinULP(1.0, 0));
+    REQUIRE_THAT(depth_intrinsic.find("focalLengthX").asFloat64(), Catch::Matchers::WithinULP(100.0, 0));
+    REQUIRE_THAT(depth_intrinsic.find("focalLengthY").asFloat64(), Catch::Matchers::WithinULP(100.0, 0));
+    REQUIRE_THAT(depth_intrinsic.find("principalPointX").asFloat64(), Catch::Matchers::WithinULP(1.0, 0));
+    REQUIRE_THAT(depth_intrinsic.find("principalPointY").asFloat64(), Catch::Matchers::WithinULP(1.0, 0));
 
     REQUIRE(device.close());
     rclcpp::shutdown();

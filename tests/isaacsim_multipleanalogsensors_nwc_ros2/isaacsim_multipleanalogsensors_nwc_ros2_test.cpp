@@ -4,31 +4,34 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <geometry_msgs/msg/wrench_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
-#include <geometry_msgs/msg/wrench_stamped.hpp>
 
 #include <IsaacSimMultipleAnalogSensorsNWCROS2.h>
-#include <yarp/os/Property.h>
 #include <yarp/os/Network.h>
+#include <yarp/os/Property.h>
 
 #include <chrono>
-#include <vector>
-#include <string>
 #include <memory>
+#include <string>
+#include <vector>
 
 using namespace std::chrono_literals;
 
-class TestNode : public rclcpp::Node {
+class TestNode : public rclcpp::Node
+{
 public:
-    TestNode() : Node("test_node") {
+    TestNode() : Node("test_node")
+    {
         m_imu1_pub = this->create_publisher<sensor_msgs::msg::Imu>("/test/IMU/imu_1", 10);
         m_imu2_pub = this->create_publisher<sensor_msgs::msg::Imu>("/test/IMU/imu_2", 10);
         m_ft1_pub = this->create_publisher<geometry_msgs::msg::WrenchStamped>("/test/FT/ft_1", 10);
         m_ft2_pub = this->create_publisher<geometry_msgs::msg::WrenchStamped>("/test/FT/ft_2", 10);
     }
 
-    void publish_dummy_values(rclcpp::Time timestamp) {
+    void publish_dummy_values(rclcpp::Time timestamp)
+    {
         constexpr double deg2rad = M_PI / 180.0;
         auto imu1_msg = sensor_msgs::msg::Imu();
         imu1_msg.angular_velocity.x = 0.1 * deg2rad;
@@ -88,7 +91,8 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr m_ft2_pub;
 };
 
-TEST_CASE("IMU and FT messages reception", "[ros2]") {
+TEST_CASE("IMU and FT messages reception", "[ros2]")
+{
     rclcpp::init(0, nullptr);
     yarp::os::Network::init();
 
@@ -122,16 +126,18 @@ TEST_CASE("IMU and FT messages reception", "[ros2]") {
     auto start = std::chrono::steady_clock::now();
     bool received = false;
 
-    while (std::chrono::steady_clock::now() - start < 2s) {
+    while (std::chrono::steady_clock::now() - start < 2s)
+    {
         executor.spin_some();
-        if (device.getOrientationSensorStatus(0) == yarp::dev::MAS_status::MAS_OK
-            && device.getOrientationSensorStatus(1) == yarp::dev::MAS_status::MAS_OK
-            && device.getThreeAxisGyroscopeStatus(0) == yarp::dev::MAS_status::MAS_OK
-            && device.getThreeAxisGyroscopeStatus(1) == yarp::dev::MAS_status::MAS_OK
-            && device.getThreeAxisLinearAccelerometerStatus(0) == yarp::dev::MAS_status::MAS_OK
-            && device.getThreeAxisLinearAccelerometerStatus(1) == yarp::dev::MAS_status::MAS_OK
-            && device.getSixAxisForceTorqueSensorStatus(0) == yarp::dev::MAS_status::MAS_OK
-            && device.getSixAxisForceTorqueSensorStatus(1) == yarp::dev::MAS_status::MAS_OK) {
+        if (device.getOrientationSensorStatus(0) == yarp::dev::MAS_status::MAS_OK &&
+            device.getOrientationSensorStatus(1) == yarp::dev::MAS_status::MAS_OK &&
+            device.getThreeAxisGyroscopeStatus(0) == yarp::dev::MAS_status::MAS_OK &&
+            device.getThreeAxisGyroscopeStatus(1) == yarp::dev::MAS_status::MAS_OK &&
+            device.getThreeAxisLinearAccelerometerStatus(0) == yarp::dev::MAS_status::MAS_OK &&
+            device.getThreeAxisLinearAccelerometerStatus(1) == yarp::dev::MAS_status::MAS_OK &&
+            device.getSixAxisForceTorqueSensorStatus(0) == yarp::dev::MAS_status::MAS_OK &&
+            device.getSixAxisForceTorqueSensorStatus(1) == yarp::dev::MAS_status::MAS_OK)
+        {
             received = true;
             break;
         }

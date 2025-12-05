@@ -4,60 +4,57 @@
 #ifndef ISAACSIM_MAS_SENSORS_NWC_ROS2_H
 #define ISAACSIM_MAS_SENSORS_NWC_ROS2_H
 
-#include <yarp/dev/DeviceDriver.h>
 #include <yarp/dev/ControlBoardInterfaces.h>
+#include <yarp/dev/DeviceDriver.h>
 #include <yarp/dev/IPreciselyTimed.h>
 
-#include <rclcpp/node.hpp>
-#include <rclcpp/executors/multi_threaded_executor.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
-#include <rcl_interfaces/srv/get_parameters.hpp>
-#include <rcl_interfaces/srv/set_parameters.hpp>
 #include <rcl_interfaces/msg/parameter.hpp>
 #include <rcl_interfaces/msg/parameter_value.hpp>
 #include <rcl_interfaces/msg/set_parameters_result.hpp>
+#include <rcl_interfaces/srv/get_parameters.hpp>
+#include <rcl_interfaces/srv/set_parameters.hpp>
+#include <rclcpp/executors/multi_threaded_executor.hpp>
+#include <rclcpp/node.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
 
+#include <atomic>
+#include <chrono>
 #include <memory>
 #include <mutex>
-#include <atomic>
 #include <string>
 #include <thread>
 #include <vector>
-#include <chrono>
 
 #include "IsaacSimControlBoardNWCROS2_ParamsParser.h"
 
 namespace yarp::dev
 {
-    class IsaacSimControlBoardNWCROS2;
+class IsaacSimControlBoardNWCROS2;
 }
 
-
-class yarp::dev::IsaacSimControlBoardNWCROS2 :
-    public yarp::dev::DeviceDriver,
-    public yarp::dev::IPidControl,
-    public yarp::dev::IPositionControl,
-    public yarp::dev::IPositionDirect,
-    public yarp::dev::IVelocityControl,
-    public yarp::dev::IPWMControl,
-    public yarp::dev::ICurrentControl,
-    public yarp::dev::IEncodersTimed,
-    public yarp::dev::IMotor,
-    public yarp::dev::IMotorEncoders,
-    public yarp::dev::IAmplifierControl,
-    public yarp::dev::IControlLimits,
-    public yarp::dev::IRemoteCalibrator,
-    public yarp::dev::IControlCalibration,
-    public yarp::dev::ITorqueControl,
-    public yarp::dev::IImpedanceControl,
-    public yarp::dev::IControlMode,
-    public yarp::dev::IAxisInfo,
-    public yarp::dev::IPreciselyTimed,
-    public yarp::dev::IInteractionMode,
-    public yarp::dev::IRemoteVariables,
-    public yarp::dev::IJointFault
+class yarp::dev::IsaacSimControlBoardNWCROS2 : public yarp::dev::DeviceDriver,
+                                               public yarp::dev::IPidControl,
+                                               public yarp::dev::IPositionControl,
+                                               public yarp::dev::IPositionDirect,
+                                               public yarp::dev::IVelocityControl,
+                                               public yarp::dev::IPWMControl,
+                                               public yarp::dev::ICurrentControl,
+                                               public yarp::dev::IEncodersTimed,
+                                               public yarp::dev::IMotor,
+                                               public yarp::dev::IMotorEncoders,
+                                               public yarp::dev::IAmplifierControl,
+                                               public yarp::dev::IControlLimits,
+                                               public yarp::dev::IRemoteCalibrator,
+                                               public yarp::dev::IControlCalibration,
+                                               public yarp::dev::ITorqueControl,
+                                               public yarp::dev::IImpedanceControl,
+                                               public yarp::dev::IControlMode,
+                                               public yarp::dev::IAxisInfo,
+                                               public yarp::dev::IPreciselyTimed,
+                                               public yarp::dev::IInteractionMode,
+                                               public yarp::dev::IRemoteVariables,
+                                               public yarp::dev::IJointFault
 {
-
 public:
     IsaacSimControlBoardNWCROS2() = default;
     ~IsaacSimControlBoardNWCROS2() override;
@@ -361,7 +358,8 @@ public:
 
     bool getImpedanceOffset(int j, double* offset) override;
 
-    bool getCurrentImpedanceLimit(int j, double* min_stiff, double* max_stiff, double* min_damp, double* max_damp) override;
+    bool getCurrentImpedanceLimit(int j, double* min_stiff, double* max_stiff, double* min_damp,
+                                  double* max_damp) override;
 
     bool getControlMode(int j, int* mode) override;
 
@@ -444,7 +442,6 @@ public:
     bool getRefCurrent(int m, double* curr) override;
 
 private:
-
     using Parameters = std::vector<std::pair<std::string, uint8_t>>;
 
     bool setup();
@@ -455,7 +452,8 @@ private:
 
     std::vector<rcl_interfaces::msg::ParameterValue> getParameters(const Parameters& parameters);
 
-    std::vector<rcl_interfaces::msg::SetParametersResult> setParameters(const std::vector<rcl_interfaces::msg::Parameter>& params);
+    std::vector<rcl_interfaces::msg::SetParametersResult>
+    setParameters(const std::vector<rcl_interfaces::msg::Parameter>& params);
 
     struct JointsState
     {
@@ -465,7 +463,7 @@ private:
         std::vector<double> effort;
         std::vector<int64_t> jointTypes;
         yarp::os::Stamp timestamp;
-        std::atomic<bool> valid{ false };
+        std::atomic<bool> valid{false};
         mutable std::mutex mutex;
         void convert_to_vectors(const sensor_msgs::msg::JointState::ConstSharedPtr& js);
         void convert_to_msg(sensor_msgs::msg::JointState& js) const;
@@ -478,11 +476,9 @@ private:
     class CBStreamingNode : public rclcpp::Node
     {
     public:
-        explicit CBStreamingNode(const std::string& node_name,
-                                 const std::string& joint_state_topic_name,
+        explicit CBStreamingNode(const std::string& node_name, const std::string& joint_state_topic_name,
                                  const std::string& motor_state_topic_name,
-                                 const std::string& joint_references_topic_name,
-                                 IsaacSimControlBoardNWCROS2* parent);
+                                 const std::string& joint_references_topic_name, IsaacSimControlBoardNWCROS2* parent);
 
         void publishReferences(JointsState& msg);
 
@@ -496,10 +492,8 @@ private:
     class CBServiceNode : public rclcpp::Node
     {
     public:
-        explicit CBServiceNode(const std::string& node_name,
-                               const std::string& get_param_service_name,
-                               const std::string& set_param_service_name,
-                               double requests_timeout_sec);
+        explicit CBServiceNode(const std::string& node_name, const std::string& get_param_service_name,
+                               const std::string& set_param_service_name, double requests_timeout_sec);
 
         bool waitServicesAvailable();
 
@@ -518,6 +512,6 @@ private:
     std::vector<std::string> m_jointNames;
     std::vector<double> m_compliantOffset;
     std::vector<bool> m_compliant;
-    std::atomic<bool> m_ready{ false };
+    std::atomic<bool> m_ready{false};
 };
 #endif
