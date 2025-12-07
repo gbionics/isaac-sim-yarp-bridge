@@ -169,7 +169,7 @@ def create_control_board_subcompound(
             (cb_script_name + ".inputs:useDomainIDEnvVar", "bool"),
             (cb_script_name + ".inputs:node_name", "string"),
             (cb_script_name + ".inputs:node_set_parameters_service_name", "string"),
-            (cb_script_name + ".inputs:node_get_parameters_service_name", "string"),
+            (cb_script_name + ".inputs:node_parameters_event_topic_name", "string"),
             (cb_script_name + ".inputs:node_state_topic_name", "string"),
             (cb_script_name + ".inputs:node_motor_state_topic_name", "string"),
             (cb_script_name + ".inputs:node_timeout", "double"),
@@ -215,8 +215,8 @@ def create_control_board_subcompound(
                 cb_topic_prefix + "/set_parameters",
             ),
             (
-                cb_script_name + ".inputs:node_get_parameters_service_name",
-                cb_topic_prefix + "/get_parameters",
+                cb_script_name + ".inputs:node_parameters_event_topic_name",
+                cb_topic_prefix + "/parameter_events",
             ),
             (
                 cb_script_name + ".inputs:node_state_topic_name",
