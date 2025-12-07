@@ -22,7 +22,7 @@
 # - useDomainIDEnvVar [bool]: Define whether to get the domain ID from an env var or not (optional). Read only during setup.
 # - node_name [str]: The ROS2 node name. Read only during setup.
 # - node_set_parameters_service_name [str]: The ROS2 set parameters service name. Read only during setup.
-# - node_get_parameters_service_name [str]: The ROS2 get parameters service name. Read only during setup.
+# - node_parameters_event_topic_name [str]: The ROS2 parameter events topic name. Read only during setup.
 # - node_state_topic_name [str]: The ROS2 joint state topic name. Read only during setup.
 # - node_motor_state_topic_name [str]: The ROS2 motor state topic name. Read only during setup.
 # - node_timeout [double]: The ROS2 node timeout (in seconds). Read only during setup.
@@ -61,8 +61,13 @@ import numpy as np
 import omni.graph.core as og
 import rclpy
 from isaacsim.core.api.robots import RobotView
-from rcl_interfaces.msg import ParameterType, ParameterValue, SetParametersResult
-from rcl_interfaces.srv import GetParameters as GetParametersSrv
+from rcl_interfaces.msg import (
+    Parameter,
+    ParameterEvent,
+    ParameterType,
+    ParameterValue,
+    SetParametersResult,
+)
 from rcl_interfaces.srv import SetParameters as SetParametersSrv
 from rclpy.context import Context as ROS2Context
 from rclpy.executors import SingleThreadedExecutor
@@ -75,7 +80,7 @@ class ControlBoardSettings:
     # Node settings
     node_name: str
     node_set_parameters_service_name: str
-    node_get_parameters_service_name: str
+    node_parameters_event_topic_name: str
     node_state_topic_name: str
     node_motor_state_topic_name: str
     node_timeout: float
@@ -274,7 +279,7 @@ class ControlBoardNode(ROS2Node):
         self,
         node_name: str,
         set_service_name: str,
-        get_service_name: str,
+        parameter_events_topic_name: str,
         state_topic_name: str,
         motor_state_topic_name: str,
         context,
@@ -284,8 +289,8 @@ class ControlBoardNode(ROS2Node):
         self.set_srv = self.create_service(
             SetParametersSrv, set_service_name, self.callback_set_parameters
         )
-        self.get_srv = self.create_service(
-            GetParametersSrv, get_service_name, self.callback_get_parameters
+        self.parameter_event_pub = self.create_publisher(
+            ParameterEvent, parameter_events_topic_name, 10
         )
         self.state_pub = self.create_publisher(JointState, state_topic_name, 10)
         self.motor_state_pub = self.create_publisher(
@@ -293,6 +298,9 @@ class ControlBoardNode(ROS2Node):
         )
 
         self.state = state
+        self.parameter_names = [
+            name for name, value in vars(self.state).items() if isinstance(value, (list, np.ndarray))
+        ]
 
     def set_vector_parameter(self, name: str, value: list):
         if hasattr(self.state, name):
@@ -358,39 +366,6 @@ class ControlBoardNode(ROS2Node):
                 )
         return output
 
-    def get_scalar_parameter(self, name: str, index: int):
-        output = ParameterValue()
-        output.type = ParameterType.PARAMETER_NOT_SET
-        if hasattr(self.state, name):
-            vec = getattr(self.state, name)
-            if 0 <= index < len(vec):
-                v = vec[index]
-                if isinstance(v, bool):
-                    output.type = ParameterType.PARAMETER_BOOL
-                    output.bool_value = v
-                elif isinstance(v, int):
-                    output.type = ParameterType.PARAMETER_INTEGER
-                    output.integer_value = v
-                elif isinstance(v, float):
-                    output.type = ParameterType.PARAMETER_DOUBLE
-                    output.double_value = v
-                elif isinstance(v, str):
-                    output.type = ParameterType.PARAMETER_STRING
-                    output.string_value = v
-                else:
-                    print(
-                        f"Unsupported type for parameter {name}[{index}]: {type(v)}. "
-                        f"This should not have happened!"
-                    )
-            else:
-                output.type = ParameterType.PARAMETER_NOT_SET
-                print(
-                    f"Index {index} out of range for parameter {name} "
-                    f"with size {len(vec)}. This should not have happened!"
-                )
-
-        return output
-
     @staticmethod
     def extract_indexed_name(name: str):
         if "[" in name and name.endswith("]"):
@@ -421,17 +396,22 @@ class ControlBoardNode(ROS2Node):
         response.results = results
         return response
 
-    def callback_get_parameters(self, request, response):
-        results = []
-        for n in request.names:
-            name, index = self.extract_indexed_name(n)
-            if index is not None:
-                param_value = self.get_scalar_parameter(name, index)
-            else:
-                param_value = self.get_vector_parameter(name)
-            results.append(param_value)
-        response.values = results
-        return response
+    def build_parameter_message(self, name: str):
+        param_msg = Parameter()
+        param_msg.name = name
+        param_msg.value = self.get_vector_parameter(name)
+        return param_msg
+
+    def publish_parameter_event(self):
+        event = ParameterEvent()
+        event.stamp = self.get_clock().now().to_msg()
+        event.node = self.get_fully_qualified_name()
+
+        for name in self.parameter_names:
+            param_msg = self.build_parameter_message(name)
+            event.changed_parameters.append(param_msg)
+
+        self.parameter_event_pub.publish(event)
 
     def publish_joint_state(self, timestamp, positions, velocities, efforts):
         msg = JointState()
@@ -817,7 +797,7 @@ def fill_settings_from_db(db: og.Database) -> ControlBoardSettings:
     s = ControlBoardSettings(
         node_name=db.inputs.node_name,
         node_set_parameters_service_name=db.inputs.node_set_parameters_service_name,
-        node_get_parameters_service_name=db.inputs.node_get_parameters_service_name,
+        node_parameters_event_topic_name=db.inputs.node_parameters_event_topic_name,
         node_state_topic_name=db.inputs.node_state_topic_name,
         node_motor_state_topic_name=db.inputs.node_motor_state_topic_name,
         node_timeout=db.inputs.node_timeout,
@@ -929,7 +909,7 @@ def setup_cb(db: og.Database):
     db.per_instance_state.node = ControlBoardNode(
         node_name=settings.node_name,
         set_service_name=settings.node_set_parameters_service_name,
-        get_service_name=settings.node_get_parameters_service_name,
+        parameter_events_topic_name=settings.node_parameters_event_topic_name,
         state_topic_name=settings.node_state_topic_name,
         motor_state_topic_name=settings.node_motor_state_topic_name,
         context=db.per_instance_state.context,
@@ -1415,6 +1395,9 @@ def compute(db: og.Database):
     db.outputs.desired_efforts = output_effort
 
     update_state(db)
+
+    # Stream all parameters as changed after updating the internal state
+    script_state.node.publish_parameter_event()
 
     timestamp = (
         db.inputs.timestamp
