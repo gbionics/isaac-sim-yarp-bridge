@@ -10,13 +10,14 @@
 #                    Use db.log_error, db.log_warning to report problems in the compute function.
 #    og: The omni.graph.core module
 
-# Expects 36 inputs:
+# Expects 37 inputs:
 # - timestamp [double]: The current simulation time (in seconds)
 # - deltaTime [double]: Time passed since last compute (in seconds)
 # - reference_joint_names [token[]]: The list of joint names for the input reference commands.
 # - reference_position_commands [double[]]: The list of joint position commands.
 # - reference_velocity_commands [double[]]: The list of joint velocity commands.
 # - reference_effort_commands [double[]]: The list of joint effort commands.
+# - reference_timestamp [double]: The timestamp associated with the references.
 # - robot_prim [target]: The robot prim. Read only during setup.
 # - domain_id [uchar]: The ROS2 domain ID (optional). Read only during setup.
 # - useDomainIDEnvVar [bool]: Define whether to get the domain ID from an env var or not (optional). Read only during setup.
@@ -299,7 +300,9 @@ class ControlBoardNode(ROS2Node):
 
         self.state = state
         self.parameter_names = [
-            name for name, value in vars(self.state).items() if isinstance(value, (list, np.ndarray))
+            name
+            for name, value in vars(self.state).items()
+            if isinstance(value, (list, np.ndarray))
         ]
 
     def set_vector_parameter(self, name: str, value: list):
@@ -763,6 +766,7 @@ class ControlBoardData:
         self.executor = None
         self.robot = None
         self.robot_joint_indices = None
+        self.previous_timestamp = None
         self.initialized = False
 
 
@@ -920,6 +924,7 @@ def setup_cb(db: og.Database):
     )
     db.per_instance_state.executor.add_node(db.per_instance_state.node)
 
+    db.per_instance_state.previous_timestamp = None
     db.per_instance_state.initialized = True
 
 
@@ -953,6 +958,7 @@ def get_pid_output(
     max_velocity: float,
     max_effort: float,
     max_current: float,
+    reference_timestamp_has_changed: bool,
 ) -> float:
     script_state = db.per_instance_state
     cb_state = script_state.state
@@ -981,6 +987,7 @@ def get_pid_output(
     def get_reference(field):
         if (
             has_reference_name
+            and reference_timestamp_has_changed
             and hasattr(db.inputs, field)
             and getattr(db.inputs, field) is not None
             and reference_index < len(getattr(db.inputs, field))
@@ -1337,6 +1344,16 @@ def compute(db: og.Database):
 
     reset_requested_pids(db)
 
+    reference_timestamp_has_changed = False
+    if hasattr(db.inputs, "reference_timestamp"):
+        reference_timestamp = getattr(db.inputs, "reference_timestamp")
+        if reference_timestamp is not None and (
+            db.per_instance_state.previous_timestamp is None
+            or db.per_instance_state.previous_timestamp != reference_timestamp
+        ):
+            reference_timestamp_has_changed = True
+            db.per_instance_state.previous_timestamp = reference_timestamp
+
     output_effort = []
     motor_positions = [0.0] * len(cb_state.joint_names)
     motor_velocities = [0.0] * len(cb_state.joint_names)
@@ -1388,6 +1405,7 @@ def compute(db: og.Database):
             max_velocity=max_velocity,
             max_effort=max_effort,
             max_current=max_current,
+            reference_timestamp_has_changed=reference_timestamp_has_changed,
         )
         effort = max(min(effort, max_effort), -max_effort)
         output_effort.append(effort)

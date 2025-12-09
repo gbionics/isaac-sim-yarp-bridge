@@ -164,6 +164,7 @@ def create_control_board_subcompound(
             (cb_script_name + ".inputs:reference_position_commands", "double[]"),
             (cb_script_name + ".inputs:reference_velocity_commands", "double[]"),
             (cb_script_name + ".inputs:reference_effort_commands", "double[]"),
+            (cb_script_name + ".inputs:reference_timestamp", "double"),
             (cb_script_name + ".inputs:robot_prim", "target"),
             (cb_script_name + ".inputs:domain_id", "uchar"),
             (cb_script_name + ".inputs:useDomainIDEnvVar", "bool"),
@@ -330,6 +331,10 @@ def create_control_board_subcompound(
             (
                 subscriber_name + ".outputs:effortCommand",
                 cb_script_name + ".inputs:reference_effort_commands",
+            ),
+            (
+                subscriber_name + ".outputs:timeStamp",
+                cb_script_name + ".inputs:reference_timestamp",
             ),
         ],
     }
