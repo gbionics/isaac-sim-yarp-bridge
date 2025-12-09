@@ -299,7 +299,7 @@ class ControlBoardNode(ROS2Node):
 
         self.state = state
         self.parameter_names = [
-            name for name, value in vars(self.state).items() if isinstance(value, list)
+            name for name, value in vars(self.state).items() if isinstance(value, (list, np.ndarray))
         ]
 
     def set_vector_parameter(self, name: str, value: list):
@@ -396,7 +396,7 @@ class ControlBoardNode(ROS2Node):
         response.results = results
         return response
 
-    def build_parameter_message(self, name: str) -> Parameter:
+    def build_parameter_message(self, name: str):
         param_msg = Parameter()
         param_msg.name = name
         param_msg.value = self.get_vector_parameter(name)
