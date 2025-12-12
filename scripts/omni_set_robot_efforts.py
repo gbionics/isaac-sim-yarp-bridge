@@ -54,6 +54,10 @@ def create_robot_object_robot_efforts(db: og.Database, joint_names):
         prim_paths_expr=str(robot_prim.GetPath()), name="set_robot_efforts"
     )
 
+    if robot.dof_names is None:
+        db.log_error("Failed to create the RobotView. Should try to setup again.")
+        return None
+
     joint_indices = []
     for j in joint_names:
         if j not in robot.dof_names:

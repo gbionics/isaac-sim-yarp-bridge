@@ -876,6 +876,11 @@ def create_robot_object_cb(db: og.Database, name, joint_names):
         db.log_error(f"The specified prim ({robot_prim}) is not a robot")
         return None
     robot = RobotView(prim_paths_expr=str(robot_prim.GetPath()), name=name)
+
+    if robot.dof_names is None:
+        db.log_error("Failed to create the RobotView. Should try to setup again.")
+        return None
+
     robot.initialize()
 
     joint_indices = []

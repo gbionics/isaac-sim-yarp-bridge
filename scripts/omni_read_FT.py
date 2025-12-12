@@ -100,6 +100,10 @@ def create_robot_object_ft(db):
         prim_paths_expr=str(parent_prim.GetPath()), name=f"robot_ft_{FTJoint_path}"
     )
 
+    if robot_object.dof_names is None:
+        db.log_error("Failed to create the RobotView. Should try to setup again.")
+        return None
+
     if joint_name in robot_object.dof_names:
         db.log_error(f"The FT joint {joint_name} is not fixed.")
         return None
