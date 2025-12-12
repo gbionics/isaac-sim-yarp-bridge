@@ -28,14 +28,12 @@
         <xi:include href="wrappers/motorcontrol/right_hand-mc_wrapper.xml" />
 
         <!-- Left arm with hand coupling -->
-        <xi:include href="wrappers/motorcontrol/left_hand-coupling_handler.xml" />
-        <xi:include href="wrappers/motorcontrol/left_arm-mc_remapper-coupling.xml" />
-        <xi:include href="wrappers/motorcontrol/left_arm-mc_wrapper-coupling.xml" />
+        <xi:include href="wrappers/motorcontrol/left_hand-coupling_handler.xml" enabled_by="enable_coupling" />
+        <xi:include href="wrappers/motorcontrol/left_hand-mc_wrapper-coupling.xml" enabled_by="enable_coupling" />
 
         <!-- Right arm with hand coupling -->
-        <xi:include href="wrappers/motorcontrol/right_hand-coupling_handler.xml" />
-        <xi:include href="wrappers/motorcontrol/right_arm-mc_remapper-coupling.xml" />
-        <xi:include href="wrappers/motorcontrol/right_arm-mc_wrapper-coupling.xml" />
+        <xi:include href="wrappers/motorcontrol/right_hand-coupling_handler.xml" enabled_by="enable_coupling" />
+        <xi:include href="wrappers/motorcontrol/right_hand-mc_wrapper-coupling.xml" enabled_by="enable_coupling" />
 
         <!-- FT -->
         <xi:include href="bridge/FT/left_arm-FT_isaacsim.xml" />
