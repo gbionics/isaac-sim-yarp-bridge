@@ -33,7 +33,7 @@ jobs:
 
     - name: Dependencies
       run: |
-        conda install cxx-compiler cmake pkg-config make ninja colcon-common-extensions catkin_tools rosdep ros-jazzy-desktop yarp catch2 ergocub-software whole-body-estimators
+        conda install cxx-compiler cmake pkg-config make ninja colcon-common-extensions catkin_tools rosdep ros-jazzy-desktop yarp catch2 ergocub-software whole-body-estimators walking-controllers
 
     - name: Environment [Linux]
       if: contains(matrix.os, 'ubuntu')

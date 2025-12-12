@@ -10,7 +10,7 @@ The repo is composed of two main parts:
 ### Dependencies
 The C++ dependencies can be installed via ``conda`` using the following command:
 ```bash
-conda install -c conda-forge -c robostack-jazzy -c robotology cxx-compiler cmake pkg-config make ninja colcon-common-extensions catkin_tools rosdep ros-jazzy-desktop yarp catch2 ergocub-software whole-body-estimators
+conda install -c conda-forge -c robostack-jazzy -c robotology cxx-compiler cmake pkg-config make ninja colcon-common-extensions catkin_tools rosdep ros-jazzy-desktop yarp catch2 ergocub-software whole-body-estimators walking-controllers
 ```
 ### Build and install
 To build and install the YARP devices, clone the repository. Then, from the root of the repository, run:
