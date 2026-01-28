@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE robot PUBLIC "-//YARP//DTD yarprobotinterface 3.0//EN" "http://www.yarp.it/DTD/yarprobotinterfaceV3.0.dtd">
+
+<robot name="ergocubIsaacsim" build="1" portprefix="/ergocubSim" xmlns:xi="http://www.w3.org/2001/XInclude">
+
+    <devices>
+        <!-- REALSENSE -->
+        <xi:include href="bridge/sensors/realsense_isaacsim.xml" />
+        <xi:include href="wrappers/sensors/realsense_wrapper.xml" />
+
+        <!-- MOTOR CONTROL -->
+        <xi:include href="bridge/motorcontrol/head-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/torso-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/left_leg-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/right_leg-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/left_arm-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/right_arm-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/left_hand-mc_isaacsim.xml" />
+        <xi:include href="bridge/motorcontrol/right_hand-mc_isaacsim.xml" />
+
+        <xi:include href="wrappers/motorcontrol/head-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/torso-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/left_leg-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/right_leg-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/left_upper_arm-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/right_upper_arm-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/left_hand-mc_wrapper.xml" />
+        <xi:include href="wrappers/motorcontrol/right_hand-mc_wrapper.xml" />
+
+        <!-- Left arm with hand coupling -->
+        <xi:include href="wrappers/motorcontrol/left_hand-coupling_handler.xml" enabled_by="enable_coupling" />
+        <xi:include href="wrappers/motorcontrol/left_hand-mc_wrapper-coupling.xml" enabled_by="enable_coupling" />
+
+        <!-- Right arm with hand coupling -->
+        <xi:include href="wrappers/motorcontrol/right_hand-coupling_handler.xml" enabled_by="enable_coupling" />
+        <xi:include href="wrappers/motorcontrol/right_hand-mc_wrapper-coupling.xml" enabled_by="enable_coupling" />
+
+        <!-- FT -->
+        <xi:include href="bridge/FT/left_arm-FT_isaacsim.xml" />
+        <xi:include href="bridge/FT/left_foot-FT_isaacsim.xml" />
+        <xi:include href="bridge/FT/left_leg-FT_isaacsim.xml" />
+        <xi:include href="bridge/FT/right_arm-FT_isaacsim.xml" />
+        <xi:include href="bridge/FT/right_foot-FT_isaacsim.xml" />
+        <xi:include href="bridge/FT/right_leg-FT_isaacsim.xml" />
+
+        <xi:include href="wrappers/FT/left_arm-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/left_foot-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/left_leg_hip-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/left_leg-FT_remapper.xml" />
+        <xi:include href="wrappers/FT/left_leg-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/right_arm-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/right_foot-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/right_leg_hip-FT_wrapper.xml" />
+        <xi:include href="wrappers/FT/right_leg-FT_remapper.xml" />
+        <xi:include href="wrappers/FT/right_leg-FT_wrapper.xml" />
+
+        <!-- INERTIALS -->
+        <xi:include href="bridge/inertials/head-inertials_isaacsim.xml" />
+        <xi:include href="bridge/inertials/waist-inertials_isaacsim.xml" />
+
+        <xi:include href="wrappers/inertials/alljoints-inertials_remapper.xml" />
+        <xi:include href="wrappers/inertials/alljoints-inertials_wrapper.xml" />
+        <xi:include href="wrappers/inertials/head-inertials_wrapper.xml" />
+        <xi:include href="wrappers/inertials/waist-inertials_wrapper.xml" />
+
+        <!-- ESTIMATORS -->
+        <xi:include href="estimators/wholebodydynamics.xml" />
+
+    </devices>
+
+</robot>

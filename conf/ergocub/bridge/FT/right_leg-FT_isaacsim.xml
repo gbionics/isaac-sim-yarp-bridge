@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE devices PUBLIC "-//YARP//DTD yarprobotinterface 3.0//EN" "http://www.yarp.it/DTD/yarprobotinterfaceV3.0.dtd">
+
+<device xmlns:xi="http://www.w3.org/2001/XInclude" name="right_leg-FT_isaacsim" type="IsaacSimMultipleAnalogSensorsNWCROS2">
+    <param name="node_name"> right_leg_FT_subscriber </param>
+    <param name="ft_topic_names"> ("/ergocub/FT/r_leg_ft") </param>
+    <param name="imu_topic_names"> () </param>
+</device>

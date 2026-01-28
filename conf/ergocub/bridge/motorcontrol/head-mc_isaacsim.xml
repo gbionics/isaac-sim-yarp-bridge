@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE devices PUBLIC "-//YARP//DTD yarprobotinterface 3.0//EN" "http://www.yarp.it/DTD/yarprobotinterfaceV3.0.dtd">
+
+<device xmlns:xi="http://www.w3.org/2001/XInclude" name="head-mc_isaacsim" type="IsaacSimControlBoardNWCROS2">
+    <param name="streaming_node_name">head_mc_streaming</param>
+    <param name="service_node_name">head_mc_service</param>
+    <param name="joint_state_topic_name">/ergocub/head/joint_state</param>
+    <param name="motor_state_topic_name">/ergocub/head/motor_state</param>
+    <param name="joint_references_topic_name">/ergocub/head/joint_state/input</param>
+    <param name="parameter_events_topic_name">/ergocub/head/parameter_events</param>
+    <param name="set_parameters_service_name">/ergocub/head/set_parameters</param>
+    <param name="requests_timeout">0.5</param>
+</device>

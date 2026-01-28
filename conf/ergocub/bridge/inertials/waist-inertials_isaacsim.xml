@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE devices PUBLIC "-//YARP//DTD yarprobotinterface 3.0//EN" "http://www.yarp.it/DTD/yarprobotinterfaceV3.0.dtd">
+
+<device xmlns:xi="http://www.w3.org/2001/XInclude" name="waist-inertials_isaacsim" type="IsaacSimMultipleAnalogSensorsNWCROS2">
+    <param name="node_name"> waist_IMU_subscriber </param>
+    <param name="ft_topic_names"> () </param>
+    <param name="imu_topic_names"> ("/ergocub/IMU/waist_imu_0") </param>
+</device>
